@@ -166,6 +166,7 @@ namespace P2PChat.App.UI
             int maxScroll = Math.Max(0, (int)Math.Ceiling((double)list.Count / cols) * rowH - visibleH);
             if (_emojiScroll > maxScroll) _emojiScroll = maxScroll;
 
+            GraphicsState state = g.Save();
             g.SetClip(new Rectangle(p.X, gridTop, p.Width, visibleH));
             using (Font f = WaTheme.Emoji(16f))
             using (SolidBrush eb = new SolidBrush(Color.Black))
@@ -179,7 +180,7 @@ namespace P2PChat.App.UI
                         g.DrawString(list[i], f, eb, ex, ey + WaTheme.S(6));
                 }
             }
-            g.ResetClip();
+            g.Restore(state);
         }
 
         private void EmojiPanelClick(Point p)

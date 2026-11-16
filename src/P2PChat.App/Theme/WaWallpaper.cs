@@ -75,7 +75,7 @@ namespace P2PChat.App.Theme
 
                 Color ink = dark
                     ? Color.FromArgb(28, Color.FromArgb(0x16, 0x2E, 0x34))
-                    : Color.FromArgb(46, Color.FromArgb(0xD5, 0xC8, 0xB4));
+                    : Color.FromArgb(30, Color.FromArgb(0xD5, 0xC8, 0xB4));
                 float k = size / (float)Tile96;
 
                 // grille irrégulière mais déterministe de ~18 doodles par tuile

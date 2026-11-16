@@ -124,6 +124,7 @@ namespace P2PChat.App.Theme
         /// <summary>Dévelope une image en cercle anti-aliasé.</summary>
         public static void DrawRoundImage(Graphics g, Image img, Rectangle r)
         {
+            GraphicsState state = g.Save();
             using (GraphicsPath clip = new GraphicsPath())
             {
                 clip.AddEllipse(r);
@@ -133,14 +134,15 @@ namespace P2PChat.App.Theme
                 int h = (int)Math.Ceiling(img.Height * ratio);
                 Rectangle dst = new Rectangle(r.X - (w - r.Width) / 2, r.Y - (h - r.Height) / 2, w, h);
                 g.DrawImage(img, dst, 0, 0, img.Width, img.Height, GraphicsUnit.Pixel, CircularWrap);
-                g.ResetClip();
             }
+            g.Restore(state);
         }
 
         /// <summary>Développe une image en rectangle à coins arrondis (miniatures photos).</summary>
         public static void DrawRoundedImage(Graphics g, Image img, Rectangle r, float radius)
         {
             if (img == null || r.Width <= 0 || r.Height <= 0) return;
+            GraphicsState state = g.Save();
             using (GraphicsPath clip = RoundRect(r.X, r.Y, r.Width, r.Height, radius))
             {
                 g.SetClip(clip);
@@ -149,8 +151,8 @@ namespace P2PChat.App.Theme
                 int h = (int)Math.Ceiling(img.Height * ratio);
                 Rectangle dst = new Rectangle(r.X - (w - r.Width) / 2, r.Y - (h - r.Height) / 2, w, h);
                 g.DrawImage(img, dst, 0, 0, img.Width, img.Height, GraphicsUnit.Pixel, CircularWrap);
-                g.ResetClip();
             }
+            g.Restore(state);
         }
 
         // --------------------------------------------------------------- ticks

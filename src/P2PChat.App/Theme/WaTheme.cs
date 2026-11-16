@@ -145,7 +145,7 @@ namespace P2PChat.App.Theme
         public static float FontStep;
 
         /// <summary>Taille du texte des messages selon FontStep.</summary>
-        public static float MsgPt { get { return 10.55f + FontStep * 0.75f; } }
+        public static float MsgPt { get { return 11f + FontStep * 0.75f; } }
         /// <summary>Taille des messages "emoji seul" (très grands, comme WhatsApp).</summary>
         public static float MsgEmojiPt { get { return 22f + FontStep * 2f; } }
 

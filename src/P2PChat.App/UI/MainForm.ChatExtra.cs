@@ -241,13 +241,14 @@ namespace P2PChat.App.UI
             Image img = GetImage(m);
             int capH = string.IsNullOrEmpty(m.Text) ? 0 : WaTheme.S(24);
             int imgH = Math.Max(1, h - capH);
+            GraphicsState state = g.Save();
             using (GraphicsPath p = WaTheme.RoundRect(x, y, w, imgH, WaTheme.S(8)))
             {
                 g.SetClip(p, CombineMode.Replace);
                 if (img != null) g.DrawImage(img, x, y, w, imgH);
                 else using (SolidBrush bb = new SolidBrush(WaTheme.BubbleOther)) g.FillRectangle(bb, x, y, w, imgH);
-                g.ResetClip();
             }
+            g.Restore(state);
             if (capH > 0)
             {
                 using (Font f = WaTheme.Text(9.4f))
