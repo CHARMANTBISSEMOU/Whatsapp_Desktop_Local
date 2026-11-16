@@ -342,21 +342,40 @@ namespace P2PChat.App.UI
             else _net.SendDeleteForAllAsync(msg.PeerId, msg.Id);
         }
 
-        private void PromptConnect()
+        private async void PromptConnect()
         {
-            string value = PromptText("Se connecter à un pair", "Adresse (ex. 192.168.1.20:54546)");
+            string value = PromptText("Ajouter un ordinateur", "Adresse IP du PC (ex. 192.168.1.20 ou 192.168.1.20:54546)");
             if (string.IsNullOrEmpty(value)) return;
+            value = value.Trim();
             string host = value;
             int port = 54546;
             int idx = value.LastIndexOf(':');
-            if (idx > 0)
+            if (idx > 0 && value.IndexOf(':') == idx)
             {
-                string p = value.Substring(idx + 1);
                 int parsed;
-                if (int.TryParse(p, out parsed)) { port = parsed; host = value.Substring(0, idx); }
+                if (!int.TryParse(value.Substring(idx + 1), out parsed) || parsed < 1 || parsed > 65535)
+                {
+                    MessageBox.Show(this, "Le port doit être compris entre 1 et 65535.",
+                        "P2PChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                port = parsed;
+                host = value.Substring(0, idx).Trim();
             }
-            _ = _net.ConnectToAsync(host, port);
-            _toasts.Show("Tentative de connexion à " + host);
+
+            string peerId = await _net.ConnectToAsync(host, port);
+            if (string.IsNullOrEmpty(peerId))
+            {
+                MessageBox.Show(this,
+                    "Connexion impossible. Vérifiez l'adresse, que P2PChat est ouvert sur l'autre PC et que le pare-feu autorise l'application sur le réseau privé.",
+                    "P2PChat", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            LoadConversationsFromPeers();
+            RebuildOrder();
+            OpenConversation(peerId);
+            _toasts.Show("Ordinateur connecté.");
         }
 
         private string PromptText(string title, string label, string initial = null)

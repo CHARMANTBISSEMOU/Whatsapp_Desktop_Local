@@ -44,6 +44,7 @@ namespace P2PChat.Net
 
         private TcpHost _host;
         private UdpBeacon _beacon;
+        private string _discoveryError;
         private Timer _cleanupTimer;
         private volatile bool _started;
         private volatile bool _disposed;
@@ -140,15 +141,19 @@ namespace P2PChat.Net
             _host.ClientAccepted += OnClientAccepted;
             _host.Start(); // accepte AVANT d'annoncer notre présence
 
+            UdpBeacon beacon = new UdpBeacon(_self, _udpPort, _host.ActualPort);
             try
             {
-                _beacon = new UdpBeacon(_self, _udpPort, _host.ActualPort);
-                _beacon.PeerSeen += OnPeerSeen;
-                _beacon.Start();
+                beacon.PeerSeen += OnPeerSeen;
+                beacon.Start();
+                _beacon = beacon;
+                _discoveryError = null;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                try { beacon.Dispose(); } catch (Exception) { }
                 _beacon = null; // UDP indisponible : le TCP reste utilisable si on nous contacte
+                _discoveryError = ex.Message;
             }
 
             _cleanupTimer = new Timer(CleanupTick, null, CleanupPeriodMs, CleanupPeriodMs);
@@ -1326,7 +1331,7 @@ namespace P2PChat.Net
             UdpBeacon b = _beacon;
             if (b != null)
             {
-                try { b.BroadcastNow(); } catch (Exception) { }
+                try { b.RefreshAndAnnounce(); } catch (Exception) { }
             }
         }
 
@@ -1446,6 +1451,8 @@ namespace P2PChat.Net
                 sb.AppendLine(b != null
                     ? " — " + b.InterfaceCount + " interface(s) servie(s)"
                     : " — désactivée");
+                if (!string.IsNullOrEmpty(_discoveryError))
+                    sb.Append("Erreur de découverte : ").AppendLine(_discoveryError);
                 sb.Append("Serveur TCP : port ");
                 sb.Append(_host != null ? _host.ActualPort.ToString() : "?");
                 sb.AppendLine();

@@ -23,6 +23,7 @@ namespace P2PChat.Net
     /// </summary>
     public sealed class UdpBeacon : IDisposable
     {
+        private static readonly IPAddress MulticastGroup = IPAddress.Parse("239.255.42.99");
         private const int BroadcastPeriodMs = 3000;
         private const int RescanPeriodTicks = 10;   // 10 × 3 s = 30 s
 
@@ -42,13 +43,20 @@ namespace P2PChat.Net
         private Timer _broadcastTimer;
         private volatile bool _running;
         private bool _disposed;
+        private bool _networkChangeHooked;
         private int _tickCount;
 
         /// <summary>Levé pour CHAQUE annonce reçue d'un pair (sauf nous-mêmes).</summary>
         public event Action<PeerInfo, IPEndPoint, int> PeerSeen;
 
         /// <summary>Nombre de cibles de broadcast servies (diagnostics).</summary>
-        public int InterfaceCount { get { lock (_sendLock) { return _targets.Count; } } }
+        public int InterfaceCount
+        {
+            get
+            {
+                lock (_sendLock) { return new HashSet<UdpClient>(_senders).Count; }
+            }
+        }
 
         public UdpBeacon(PeerInfo self, int udpPort, int tcpPort)
         {
@@ -66,13 +74,17 @@ namespace P2PChat.Net
                 if (_running) return;
 
                 _recvClient = new UdpClient();
+                _recvClient.Client.ExclusiveAddressUse = false;
                 _recvClient.Client.SetSocketOption(SocketOptionLevel.Socket,
                     SocketOptionName.ReuseAddress, true);
                 _recvClient.Client.Bind(new IPEndPoint(IPAddress.Any, _udpPort));
 
                 RefreshInterfaces();
+                JoinMulticastInterfaces();
 
                 _running = true;
+                NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+                _networkChangeHooked = true;
                 _broadcastTimer = new Timer(BroadcastTick, null, 0, BroadcastPeriodMs);
                 _recvThread = new Thread(ReceiveLoop);
                 _recvThread.IsBackground = true;
@@ -217,6 +229,7 @@ namespace P2PChat.Net
                 if (_tickCount % RescanPeriodTicks == 0)
                 {
                     RefreshInterfaces(); // changement de WiFi / ajout de carte
+                    JoinMulticastInterfaces();
                 }
                 BroadcastNow();
             }
@@ -242,6 +255,7 @@ namespace P2PChat.Net
             lock (_sendLock)
             {
                 if (!_running) return;
+                HashSet<UdpClient> multicastSent = new HashSet<UdpClient>();
                 for (int i = 0; i < _senders.Count && i < _targets.Count; i++)
                 {
                     try
@@ -252,8 +266,54 @@ namespace P2PChat.Net
                     {
                         // best effort : les autres interfaces portent l'annonce
                     }
+                    if (multicastSent.Add(_senders[i]))
+                    {
+                        try
+                        {
+                            _senders[i].Send(bytes, bytes.Length,
+                                new IPEndPoint(MulticastGroup, _udpPort));
+                        }
+                        catch (Exception) { }
+                    }
                 }
             }
+        }
+
+        /// <summary>Rafraîchit les interfaces puis relance immédiatement la découverte.</summary>
+        public void RefreshAndAnnounce()
+        {
+            if (!_running) return;
+            RefreshInterfaces();
+            JoinMulticastInterfaces();
+            BroadcastNow();
+        }
+
+        private void OnNetworkAddressChanged(object sender, EventArgs e)
+        {
+            RefreshAndAnnounce();
+        }
+
+        private void JoinMulticastInterfaces()
+        {
+            UdpClient receiver = _recvClient;
+            if (receiver == null) return;
+            try
+            {
+                foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (nic.OperationalStatus != OperationalStatus.Up ||
+                        nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                    foreach (UnicastIPAddressInformation address in nic.GetIPProperties().UnicastAddresses)
+                    {
+                        if (address.Address.AddressFamily != AddressFamily.InterNetwork ||
+                            IPAddress.IsLoopback(address.Address)) continue;
+                        try { receiver.JoinMulticastGroup(MulticastGroup, address.Address); }
+                        catch (SocketException) { }
+                        catch (ArgumentException) { }
+                    }
+                }
+            }
+            catch (Exception) { }
         }
 
         private string BuildPayload()
@@ -347,6 +407,11 @@ namespace P2PChat.Net
             lock (_lifeLock)
             {
                 _running = false;
+                if (_networkChangeHooked)
+                {
+                    NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+                    _networkChangeHooked = false;
+                }
                 if (_broadcastTimer != null)
                 {
                     try { _broadcastTimer.Dispose(); } catch (Exception) { }

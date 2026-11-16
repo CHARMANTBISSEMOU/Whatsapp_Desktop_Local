@@ -119,7 +119,7 @@ namespace P2PChat.Core.Interfaces
         /// <summary>Résumé réseau pour le panneau Paramètres (IP locale, ports, pairs).</summary>
         string DiagnosticSummary { get; }
 
-        /// <summary>Force une nouvelle vague de broadcast de découverte immédiate.</summary>
+        /// <summary>Rafraîchit les interfaces réseau et relance la découverte immédiatement.</summary>
         void AnnounceNow();
     }
 }

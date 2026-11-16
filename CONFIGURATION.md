@@ -2,7 +2,8 @@
 
 **Bonne nouvelle : P2PChat est 100 % automatique.** Aucune adresse IP à saisir,
 aucun serveur à installer, aucun réglage réseau manuel. Chaque ordinateur
-annonce sa présence en broadcast UDP et découvre les autres tout seul.
+annonce sa présence en broadcast IPv4 et en multicast de secours. Une reconnexion
+au réseau relance automatiquement le scan.
 
 ## Ce qu'il vous faut
 
@@ -15,12 +16,13 @@ annonce sa présence en broadcast UDP et découvre les autres tout seul.
 ## Étapes (identiques sur chaque ordinateur)
 
 1. **Copier le dossier `dist\`** quelque part sur le PC (ex. `C:\P2PChat`).
-2. **Lancer `P2PChat.exe`** en double-cliquant.
+2. **Lancer `p2p.exe`** en double-cliquant.
 3. À la demande du pare-feu Windows, **cocher « Réseaux privés »** puis Autoriser
    *(si la fenêtre ne s'affiche pas, voir Dépannage ci-dessous)*.
 4. Choisir un **pseudo** (≥ 3 caractères) puis « Discuter ».
 5. C'est tout ✅ — les autres ordinateurs ayant fait la même chose apparaissent
    automatiquement dans la colonne de gauche.
+6. Cliquer sur le nom d'un ordinateur pour ouvrir la discussion et envoyer un message.
 
 ## Ports utilisés (information, aucune action requise)
 
@@ -43,6 +45,10 @@ Sur un réseau public, les PC ne se découvrent pas.
 
 Rien à faire de plus : chaque instance découvre **toutes** les autres instances
 présentes sur le réseau local. Les deux ports restent identiques.
+
+Si le réseau bloque les annonces UDP, ouvrir « Ajouter un contact » et saisir
+l'adresse IP de l'autre PC (port TCP 54546 par défaut). La discussion s'ouvre
+une fois la connexion chiffrée établie.
 
 ## Dépannage : « Je ne vois pas l'autre personne »
 
