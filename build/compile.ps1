@@ -112,6 +112,7 @@ $mergeInputs = @(
     "$root\packages\System.Diagnostics.DiagnosticSource\lib\net462\System.Diagnostics.DiagnosticSource.dll",
     "$root\packages\System.Buffers\lib\net462\System.Buffers.dll",
     "$root\packages\System.Memory\lib\net462\System.Memory.dll",
+    "$root\packages\System.Numerics.Vectors\lib\net462\System.Numerics.Vectors.dll",
     "$root\packages\System.Runtime.CompilerServices.Unsafe\lib\net462\System.Runtime.CompilerServices.Unsafe.dll",
     "$root\packages\System.ValueTuple\lib\net462\System.ValueTuple.dll",
     "$root\packages\System.Net.Security\lib\net46\System.Net.Security.dll",
