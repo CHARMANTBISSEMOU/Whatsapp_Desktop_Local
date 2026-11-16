@@ -31,10 +31,15 @@ au réseau relance automatiquement le scan.
 | UDP 54545 | Découverte automatique des pairs (broadcast) | Sortant + entrant |
 | TCP 54546 | Sessions chiffrées (messages, vocaux, fichiers) | Sortant + entrant |
 
-## Tester deux utilisateurs sur le même PC
+## Utiliser plusieurs instances sur le même PC
 
-Deux lancements normaux partagent le même profil Windows. Pour créer deux
-identités de test isolées, ouvrir PowerShell à la racine du projet et lancer :
+Chaque lancement sans argument détecte les autres fenêtres P2PChat déjà
+ouvertes et crée automatiquement une identité locale séparée et persistante.
+Il suffit donc de lancer `p2p.exe` deux fois : chaque fenêtre doit apparaître
+dans la colonne de gauche de l'autre.
+
+Pour choisir vous-même les noms des profils de test, ouvrir PowerShell à la
+racine du projet et lancer :
 
 ```powershell
 Start-Process .\dist\p2p.exe -ArgumentList '--profile Alice'

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
@@ -24,9 +25,37 @@ namespace P2PChat.App
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            Mutex profileMutex = null;
+            bool ownsProfileMutex = false;
             try
             {
-                ProfileStore.ConfigureInstance(GetProfileName(args));
+                string profileName = GetProfileName(args);
+                if (profileName == null)
+                {
+                    bool createdNew;
+                    profileMutex = new Mutex(true, @"Local\P2PChat.DefaultProfile", out createdNew);
+                    ownsProfileMutex = createdNew;
+
+                    // Un lancement sans argument garde le profil habituel si
+                    // aucune instance n'est ouverte. Les instances suivantes
+                    // reçoivent automatiquement une identité indépendante.
+                    // Le contrôle de processus couvre aussi une ancienne version
+                    // déjà ouverte, qui ne connaîtrait pas encore le mutex.
+                    if (!createdNew || HasOtherP2PChatProcess())
+                    {
+                        if (ownsProfileMutex)
+                        {
+                            profileMutex.ReleaseMutex();
+                            ownsProfileMutex = false;
+                        }
+                        profileMutex.Dispose();
+                        profileMutex = null;
+                        profileName = AcquireIsolatedProfileMutex(out profileMutex);
+                        ownsProfileMutex = true;
+                    }
+                }
+
+                ProfileStore.ConfigureInstance(profileName);
                 Run();
             }
             catch (Exception ex)
@@ -39,6 +68,48 @@ namespace P2PChat.App
                 catch { }
                 MessageBox.Show("Erreur fatale : " + ex.Message, "P2PChat",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (profileMutex != null)
+                {
+                    if (ownsProfileMutex)
+                    {
+                        try { profileMutex.ReleaseMutex(); } catch (ApplicationException) { }
+                    }
+                    profileMutex.Dispose();
+                }
+            }
+        }
+
+        private static bool HasOtherP2PChatProcess()
+        {
+            int currentId = Process.GetCurrentProcess().Id;
+            Process[] processes;
+            try { processes = Process.GetProcessesByName("p2p"); }
+            catch { return false; }
+            foreach (Process process in processes)
+            {
+                using (process)
+                {
+                    if (process.Id != currentId) return true;
+                }
+            }
+            return false;
+        }
+
+        private static string AcquireIsolatedProfileMutex(out Mutex acquired)
+        {
+            for (int slot = 2; ; slot++)
+            {
+                bool createdNew;
+                Mutex candidate = new Mutex(true, @"Local\P2PChat.Instance." + slot, out createdNew);
+                if (createdNew)
+                {
+                    acquired = candidate;
+                    return "instance-" + slot;
+                }
+                candidate.Dispose();
             }
         }
 
