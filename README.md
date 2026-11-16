@@ -65,9 +65,14 @@ de .NET Framework 4.8.
 ## Lancer et tester
 
 1. Lancer `p2p.exe`, choisir un pseudo (≥ 3 caractères), « Discuter ».
-2. Pour tester seul sur UN PC : lancer l'exe deux fois (deux dossiers différents
-   conseillés), chaque instance choisit un pseudo — elles se découvrent
-   automatiquement et peuvent discuter entre elles.
+2. Pour tester seul sur un PC, ouvrir deux instances avec des profils distincts
+   depuis PowerShell, dans le dossier du projet :
+   ```powershell
+   Start-Process .\dist\p2p.exe -ArgumentList '--profile Alice'
+   Start-Process .\dist\p2p.exe -ArgumentList '--profile Bob'
+   ```
+   Chaque profil choisit son pseudo et possède son identité, ses paramètres et
+   son historique séparés. Les deux instances se découvrent sur le réseau local.
 
 Pour relier **plusieurs ordinateurs**, suivre `CONFIGURATION.md` (c'est très simple :
 même WiFi + autoriser l'application dans le pare-feu).

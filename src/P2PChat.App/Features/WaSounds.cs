@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using P2PChat.App.Profile;
 
 namespace P2PChat.App.Features
 {
@@ -19,9 +20,7 @@ namespace P2PChat.App.Features
         {
             get
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "P2PChat", "sounds");
+                return Path.Combine(ProfileStore.AppDataDir, "sounds");
             }
         }
 

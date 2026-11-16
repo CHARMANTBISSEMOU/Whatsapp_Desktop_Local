@@ -19,13 +19,14 @@ namespace P2PChat.App
     internal static class Program
     {
         [STAThread]
-        private static void Main()
+        private static void Main(string[] args)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
             try
             {
+                ProfileStore.ConfigureInstance(GetProfileName(args));
                 Run();
             }
             catch (Exception ex)
@@ -39,6 +40,19 @@ namespace P2PChat.App
                 MessageBox.Show("Erreur fatale : " + ex.Message, "P2PChat",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private static string GetProfileName(string[] args)
+        {
+            if (args == null) return null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (!string.Equals(args[i], "--profile", StringComparison.OrdinalIgnoreCase)) continue;
+                if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]))
+                    throw new ArgumentException("Utilisation : p2p.exe --profile <nom> (lettres, chiffres, - ou _).");
+                return args[i + 1];
+            }
+            return null;
         }
 
         private static void Run()

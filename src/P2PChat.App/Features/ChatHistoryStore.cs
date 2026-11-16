@@ -6,6 +6,7 @@ using P2PChat.Core.Crypto;
 using P2PChat.Core.Interfaces;
 using P2PChat.Core.Json;
 using P2PChat.Core.Protocol;
+using P2PChat.App.Profile;
 
 namespace P2PChat.App.Features
 {
@@ -21,9 +22,7 @@ namespace P2PChat.App.Features
         {
             get
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "P2PChat", "historique");
+                return Path.Combine(ProfileStore.AppDataDir, "historique");
             }
         }
 

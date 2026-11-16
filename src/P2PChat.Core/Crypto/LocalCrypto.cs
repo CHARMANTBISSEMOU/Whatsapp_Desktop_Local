@@ -16,14 +16,30 @@ namespace P2PChat.Core.Crypto
 
         private static readonly object Gate = new object();
         private static byte[] _key;
+        private static string _storageDirectory;
+
+        /// <summary>Configure le dossier de données avant le premier chiffrement local.</summary>
+        public static void ConfigureStorageDirectory(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory)) throw new ArgumentException("Dossier invalide.", "directory");
+            lock (Gate)
+            {
+                if (_key != null) throw new InvalidOperationException("Le chiffrement local est déjà initialisé.");
+                _storageDirectory = directory;
+            }
+        }
 
         private static string KeyPath
         {
             get
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "P2PChat", "secrets.key");
+                string root = _storageDirectory;
+                if (string.IsNullOrEmpty(root))
+                {
+                    root = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "P2PChat");
+                }
+                return Path.Combine(root, "secrets.key");
             }
         }
 

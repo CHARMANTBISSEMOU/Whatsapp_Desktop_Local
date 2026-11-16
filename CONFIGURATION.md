@@ -31,6 +31,20 @@ au réseau relance automatiquement le scan.
 | UDP 54545 | Découverte automatique des pairs (broadcast) | Sortant + entrant |
 | TCP 54546 | Sessions chiffrées (messages, vocaux, fichiers) | Sortant + entrant |
 
+## Tester deux utilisateurs sur le même PC
+
+Deux lancements normaux partagent le même profil Windows. Pour créer deux
+identités de test isolées, ouvrir PowerShell à la racine du projet et lancer :
+
+```powershell
+Start-Process .\dist\p2p.exe -ArgumentList '--profile Alice'
+Start-Process .\dist\p2p.exe -ArgumentList '--profile Bob'
+```
+
+Les données des profils se trouvent dans `%APPDATA%\P2PChat\instances\Alice`
+et `%APPDATA%\P2PChat\instances\Bob`. Les deux fenêtres doivent apparaître
+dans la colonne de gauche ; cliquer sur l'une ouvre la discussion.
+
 Règle d'or : **les deux PC doivent pouvoir se voir sur le réseau local.**
 C'est le cas dans quasiment toutes les configurations domestiques/scolaires.
 

@@ -13,6 +13,8 @@ namespace P2PChat.App.Profile
     /// </summary>
     public sealed class ProfileStore
     {
+        private static string _instanceName;
+
         /// <summary>L'identité publique locale.</summary>
         public PeerInfo Self = new PeerInfo();
 
@@ -21,9 +23,29 @@ namespace P2PChat.App.Profile
         {
             get
             {
-                return Path.Combine(
+                string root = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "P2PChat");
+                return string.IsNullOrEmpty(_instanceName)
+                    ? root
+                    : Path.Combine(root, "instances", _instanceName);
             }
+        }
+
+        /// <summary>Configure un profil isolé pour lancer plusieurs identités sur le même PC.</summary>
+        public static void ConfigureInstance(string instanceName)
+        {
+            string name = string.IsNullOrWhiteSpace(instanceName) ? null : instanceName.Trim();
+            if (name != null)
+            {
+                if (name.Length > 40) throw new ArgumentException("Le nom du profil ne peut pas dépasser 40 caractères.");
+                foreach (char c in name)
+                {
+                    if (!(char.IsLetterOrDigit(c) || c == '-' || c == '_'))
+                        throw new ArgumentException("Le nom du profil accepte uniquement lettres, chiffres, tirets et soulignés.");
+                }
+            }
+            _instanceName = name;
+            LocalCrypto.ConfigureStorageDirectory(AppDataDir);
         }
 
         /// <summary>Charge le profil ; en crée un neuf au premier lancement.</summary>

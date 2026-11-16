@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using P2PChat.App.Profile;
 using P2PChat.Core.Json;
 using P2PChat.Core.Crypto;
 using P2PChat.App.Theme;
@@ -75,9 +76,7 @@ public sealed class ContactLocal
         {
             get
             {
-                return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "P2PChat", "settings.json");
+                return Path.Combine(ProfileStore.AppDataDir, "settings.json");
             }
         }
 
