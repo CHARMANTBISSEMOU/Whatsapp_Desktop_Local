@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!-- Utilise les outils locaux s'ils ont été extraits ; sinon MSBuild choisit ceux du poste. -->
+  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)tools\roslyn\Microsoft.CSharp.Core.targets')">
+    <RoslynTargetsPath>$(MSBuildThisFileDirectory)tools\roslyn\</RoslynTargetsPath>
+    <CSharpCoreTargetsPath>$(MSBuildThisFileDirectory)tools\roslyn\Microsoft.CSharp.Core.targets</CSharpCoreTargetsPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)tools\refasm\.NETFramework\v4.8\RedistList\FrameworkList.xml')">
+    <TargetFrameworkRootPath>$(MSBuildThisFileDirectory)tools\refasm</TargetFrameworkRootPath>
+  </PropertyGroup>
+</Project>

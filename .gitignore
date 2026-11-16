@@ -1,0 +1,15 @@
+.vs/
+**/bin/
+**/obj/
+*.pdb
+*.cache
+build/*.log
+build/parts/
+image erreur/
+tools/roslyn/
+tools/refasm/
+tools/roslyn-unpack/
+tools/refasm-unpack/
+tools/*.nupkg
+dist/*
+!dist/p2p.exe

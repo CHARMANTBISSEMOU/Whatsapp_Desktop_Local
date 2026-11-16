@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{6F4B1A21-3333-4A33-9E0A-000000000003}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>P2PChat.App</RootNamespace>
+    <AssemblyName>p2p</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <LangVersion>7.3</LangVersion>
+    <ApplicationIcon>..\..\assets\whatsapp.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Audio\VoicePlayer.cs" />
+    <Compile Include="Audio\VoiceRecorder.cs" />
+    <Compile Include="Controls\WaMenu.cs" />
+    <Compile Include="Features\ChatHistoryStore.cs" />
+    <Compile Include="Features\Toasts.cs" />
+    <Compile Include="Features\WaSounds.cs" />
+    <Compile Include="Profile\ProfileStore.cs" />
+    <Compile Include="Settings\AppSettings.cs" />
+    <Compile Include="Theme\WaIcons.cs" />
+    <Compile Include="Theme\WaIcons2.cs" />
+    <Compile Include="Theme\WaIcons3.cs" />
+    <Compile Include="Theme\WaIcons4.cs" />
+    <Compile Include="Theme\WaIcons5.cs" />
+    <Compile Include="Theme\WaIcons6.cs" />
+    <Compile Include="Theme\WaTheme.cs" />
+    <Compile Include="Theme\WaTheme.Drawing.cs" />
+    <Compile Include="Theme\WaWallpaper.cs" />
+    <Compile Include="UI\Conversation.cs" />
+    <Compile Include="UI\LoginScreen.cs" />
+    <Compile Include="UI\MainForm.cs" />
+    <Compile Include="UI\MainForm.Chat.cs" />
+    <Compile Include="UI\MainForm.ChatExtra.cs" />
+    <Compile Include="UI\MainForm.Composer.cs" />
+    <Compile Include="UI\MainForm.Group.cs" />
+    <Compile Include="UI\MainForm.Layout.cs" />
+    <Compile Include="UI\MainForm.Menus.cs" />
+    <Compile Include="UI\MainForm.Mouse.cs" />
+    <Compile Include="UI\MainForm.Navigation.cs" />
+    <Compile Include="UI\MainForm.Net.cs" />
+    <Compile Include="UI\MainForm.Profile.cs" />
+    <Compile Include="UI\MainForm.SettingsPage.cs" />
+    <Compile Include="UI\MainForm.Sidebar.cs" />
+    <Compile Include="UI\MainForm.Status.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\P2PChat.Core\P2PChat.Core.csproj">
+      <Project>{6F4B1A21-1111-4A11-9E0A-000000000001}</Project>
+      <Name>P2PChat.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\P2PChat.Net\P2PChat.Net.csproj">
+      <Project>{6F4B1A21-2222-4A22-9E0A-000000000002}</Project>
+      <Name>P2PChat.Net</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
