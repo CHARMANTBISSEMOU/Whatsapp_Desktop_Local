@@ -129,6 +129,7 @@ namespace P2PChat.Net
         public event Action<string, string> MessageDeletedForAll;
         public event Action<string, string, string, List<string>> GroupMetaReceived;
         public event Action<string, StatusPost> StatusReceived;
+        public event Action<string, CallSignal> CallSignalReceived;
 
         /// <summary>Démarre la découverte UDP + le serveur TCP + le périphérique de nettoyage.</summary>
         public void Start()
@@ -679,6 +680,9 @@ namespace P2PChat.Net
                     case WireType.StatusPost:
                         HandleStatus(peerId, env);
                         break;
+                    case WireType.CallSignal:
+                        HandleCallSignal(peerId, env);
+                        break;
                     case WireType.Receipt:
                         HandleReceipt(peerId, env);
                         break;
@@ -693,6 +697,16 @@ namespace P2PChat.Net
             {
                 // trame incohérente : ignorée, la session reste ouverte
             }
+        }
+
+        private void HandleCallSignal(string peerId, WireEnvelope env)
+        {
+            CallSignal signal = CallSignal.FromDict(env.Payload());
+            if (signal == null || string.IsNullOrEmpty(signal.CallId) ||
+                (signal.Action != "offer" && signal.Action != "answer" &&
+                 signal.Action != "hangup" && signal.Action != "reject")) return;
+            Action<string, CallSignal> handler = CallSignalReceived;
+            if (handler != null) PostUi(delegate { handler(peerId, signal); });
         }
 
         private void HandleText(PeerSession session, string peerId, WireEnvelope env)
@@ -1323,6 +1337,20 @@ namespace P2PChat.Net
                 try { return s.SendEnvelope(env); }
                 catch (Exception) { return false; }
             });
+        }
+
+        public async Task<bool> SendCallSignalAsync(string peerId, CallSignal signal)
+        {
+            if (string.IsNullOrEmpty(peerId) || signal == null || string.IsNullOrEmpty(signal.CallId)) return false;
+            PeerState st;
+            lock (_sync) { if (!_states.TryGetValue(peerId, out st)) return false; }
+            try
+            {
+                PeerSession s = await EnsureSessionAsync(st).ConfigureAwait(false);
+                return s != null && s.SendEnvelope(WireEnvelope.Create(
+                    WireType.CallSignal, _self.Id, MiniJson.Serialize(signal.ToDict())));
+            }
+            catch (Exception) { return false; }
         }
 
         /// <summary>Nouvelle vague de découverte immédiate (bouton « réessayer »).</summary>

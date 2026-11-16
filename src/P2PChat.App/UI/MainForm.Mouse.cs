@@ -53,6 +53,7 @@ namespace P2PChat.App.UI
             {
                 if (Inflated(HeaderIconRect(1), 8).Contains(p)) hb = 1;
                 else if (Inflated(HeaderIconRect(0), 8).Contains(p)) hb = 0;
+                else if (Inflated(HeaderIconRect(2), 8).Contains(p)) hb = 2;
             }
             if (hb != _hoverChatBtn) { _hoverChatBtn = hb; Invalidate(ChatHeaderRect()); }
 
@@ -100,6 +101,7 @@ namespace P2PChat.App.UI
 
             if (ChatHeaderRect().Contains(p))
             {
+                if (Inflated(HeaderIconRect(2), 8).Contains(p)) { StartAudioCall(); return; }
                 if (Inflated(HeaderIconRect(1), 8).Contains(p)) { ToggleChatSearch(); return; }
                 if (Inflated(HeaderIconRect(0), 8).Contains(p)) { ShowChatMenu(PointToScreen(p)); return; }
                 return;

@@ -67,6 +67,9 @@ namespace P2PChat.Core.Interfaces
         /// <summary>Statut/story reçu d'un pair : (expéditeur, statut).</summary>
         event Action<string, StatusPost> StatusReceived;
 
+        /// <summary>Signal d'appel audio reçu : (identifiant du pair, signal).</summary>
+        event Action<string, CallSignal> CallSignalReceived;
+
         /// <summary>Démarre la découverte UDP et le serveur TCP. Appeler une seule fois.</summary>
         void Start();
 
@@ -102,6 +105,9 @@ namespace P2PChat.Core.Interfaces
 
         /// <summary>Envoie un statut (story) à un pair.</summary>
         Task<bool> SendStatusAsync(string peerId, StatusPost status);
+
+        /// <summary>Envoie une offre, réponse ou fin d'appel au pair direct.</summary>
+        Task<bool> SendCallSignalAsync(string peerId, CallSignal signal);
 
         /// <summary>Marque un message reçu comme lu (envoie l'accusé ✓✓ bleu à l'expéditeur).</summary>
         Task MarkReadAsync(string peerId, string messageId);

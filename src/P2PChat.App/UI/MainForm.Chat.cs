@@ -77,6 +77,7 @@ namespace P2PChat.App.UI
             // boutons droite : recherche + menu
             Rectangle bSearch = HeaderIconRect(1);
             Rectangle bMenu = HeaderIconRect(0);
+            Rectangle bCall = HeaderIconRect(2);
             Color ic = WaTheme.IconGray;
             if (_hoverChatBtn == 1)
             {
@@ -94,8 +95,17 @@ namespace P2PChat.App.UI
                         bMenu.Width + WaTheme.S(16), bMenu.Height + WaTheme.S(16));
                 }
             }
+            if (_hoverChatBtn == 2 && !IsGroup(c.PeerId))
+            {
+                using (SolidBrush hb = new SolidBrush(WaTheme.Hover))
+                    g.FillEllipse(hb, bCall.X - WaTheme.S(8), bCall.Y - WaTheme.S(8),
+                        bCall.Width + WaTheme.S(16), bCall.Height + WaTheme.S(16));
+            }
             WaIcons.Search(g, bSearch.X, bSearch.Y, bSearch.Width, ic);
             WaIcons.MenuDots(g, bMenu.X, bMenu.Y, bMenu.Height, ic);
+            using (Font callFont = new Font("Segoe UI Symbol", WaTheme.S(17f), FontStyle.Regular, GraphicsUnit.Pixel))
+            using (SolidBrush callBrush = new SolidBrush(IsGroup(c.PeerId) ? WaTheme.TextGray : ic))
+                g.DrawString("☎", callFont, callBrush, bCall.X - WaTheme.S(1), bCall.Y - WaTheme.S(1));
         }
 
         /// <summary>Position des icônes droites de l'entête de discussion (0 = le plus à droite).</summary>

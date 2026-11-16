@@ -23,6 +23,7 @@ namespace P2PChat.App.UI
             _net.MessageDeletedForAll += OnMessageDeletedForAll;
             _net.GroupMetaReceived += OnGroupMetaReceived;
             _net.StatusReceived += OnStatusReceived;
+            _net.CallSignalReceived += OnCallSignalReceived;
         }
 
         private void OnPeerListChanged(object sender, EventArgs e)

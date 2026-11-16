@@ -11,5 +11,7 @@ tools/refasm/
 tools/roslyn-unpack/
 tools/refasm-unpack/
 tools/*.nupkg
+tools/nuget.exe
+packages/
 dist/*
 !dist/p2p.exe

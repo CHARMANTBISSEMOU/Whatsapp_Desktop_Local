@@ -11,6 +11,8 @@ $ref = Join-Path $root "tools\refasm\.NETFramework\v4.8"
 if (-not (Test-Path $csc) -or -not (Test-Path $ref)) {
     throw "Outils absents. Lancez d'abord tools\setup-tools.ps1."
 }
+$sipDll = Join-Path $root "packages\SIPSorcery\lib\net462\SIPSorcery.dll"
+if (-not (Test-Path $sipDll)) { & (Join-Path $root "tools\setup-audio.ps1") }
 
 $define = "/define:DEBUG;TRACE"
 $opt = "/optimize-"
@@ -79,11 +81,47 @@ $appArgs = @('/nologo', '/warn:4', '/langversion:7.3', '/codepage:65001', $debug
              '/target:winexe', "/out:$appOut") +
            @("/r:$ref\System.dll", "/r:$ref\System.Core.dll",
              "/r:$ref\System.Windows.Forms.dll", "/r:$ref\System.Drawing.dll",
+             "/r:$ref\Facades\netstandard.dll",
+             "/r:$sipDll",
+             "/r:$root\packages\SIPSorceryMedia.Abstractions\lib\netstandard2.0\SIPSorceryMedia.Abstractions.dll",
+             "/r:$root\packages\NAudio.Core\lib\netstandard2.0\NAudio.Core.dll",
+             "/r:$root\packages\NAudio.WinMM\lib\netstandard2.0\NAudio.WinMM.dll",
+             "/r:$root\packages\System.Memory\lib\net462\System.Memory.dll",
+             "/r:$root\packages\System.ValueTuple\lib\net462\System.ValueTuple.dll",
              $define, $opt, "/win32icon:$root\assets\whatsapp.ico",
              "/win32manifest:$root\src\P2PChat.App\app.manifest") + $appSources
 & $csc @appArgs
 if ($LASTEXITCODE -ne 0) { throw "Echec de compilation -> $appOut" }
-Write-Host "OK  $appOut ($($appSources.Count) fichiers, application autonome)" -ForegroundColor Green
+$mergeDll = Join-Path $root "packages\ILRepack\tools\ILRepack.exe"
+$mergeInputs = @(
+    $appOut,
+    $sipDll,
+    "$root\packages\SIPSorceryMedia.Abstractions\lib\netstandard2.0\SIPSorceryMedia.Abstractions.dll",
+    "$root\packages\NAudio.Core\lib\netstandard2.0\NAudio.Core.dll",
+    "$root\packages\NAudio.WinMM\lib\netstandard2.0\NAudio.WinMM.dll",
+    "$root\packages\Concentus\lib\netstandard1.1\Concentus.dll",
+    "$root\packages\BouncyCastle.Cryptography\lib\net461\BouncyCastle.Cryptography.dll",
+    "$root\packages\DnsClient\lib\net472\DnsClient.dll",
+    "$root\packages\Makaretu.Dns\lib\net472\Makaretu.Dns.dll",
+    "$root\packages\Makaretu.Dns.Multicast\lib\net461\Makaretu.Dns.Multicast.dll",
+    "$root\packages\SIPSorcery.WebSocketSharp\lib\net452\websocket-sharp.dll",
+    "$root\packages\Microsoft.Extensions.Logging.Abstractions\lib\net462\Microsoft.Extensions.Logging.Abstractions.dll",
+    "$root\packages\Microsoft.Extensions.DependencyInjection.Abstractions\lib\net462\Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+    "$root\packages\Microsoft.Bcl.AsyncInterfaces\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll",
+    "$root\packages\Microsoft.Bcl.HashCode\lib\net462\Microsoft.Bcl.HashCode.dll",
+    "$root\packages\System.Diagnostics.DiagnosticSource\lib\net462\System.Diagnostics.DiagnosticSource.dll",
+    "$root\packages\System.Buffers\lib\net462\System.Buffers.dll",
+    "$root\packages\System.Memory\lib\net462\System.Memory.dll",
+    "$root\packages\System.Runtime.CompilerServices.Unsafe\lib\net462\System.Runtime.CompilerServices.Unsafe.dll",
+    "$root\packages\System.ValueTuple\lib\net462\System.ValueTuple.dll",
+    "$root\packages\System.Net.Security\lib\net46\System.Net.Security.dll",
+    "$root\packages\System.Net.WebSockets.Client\lib\net46\System.Net.WebSockets.Client.dll"
+)
+$merged = Join-Path $appBin "p2p-merged.exe"
+& $mergeDll "/out:$merged" "/target:winexe" "/lib:$root\packages" "/internalize" $mergeInputs
+if ($LASTEXITCODE -ne 0) { throw "Échec de l'assemblage des dépendances dans p2p.exe." }
+Move-Item -LiteralPath $merged -Destination $appOut -Force
+Write-Host "OK  $appOut ($($appSources.Count) fichiers, dépendances incluses)" -ForegroundColor Green
 
 # 4) P2PChat.Tests (console)
 Invoke-Csc -out (Join-Path $testsBin "P2PChat.Tests.exe") -target exe `

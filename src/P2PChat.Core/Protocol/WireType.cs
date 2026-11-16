@@ -54,6 +54,9 @@ namespace P2PChat.Core.Protocol
         GroupText = 15,
 
         /// <summary>Statut/story publié : payload = StatusPost {id, snd, txt, bg, ts}.</summary>
-        StatusPost = 16
+        StatusPost = 16,
+
+        /// <summary>Signalisation d'appel audio WebRTC : offre, réponse ou fin.</summary>
+        CallSignal = 17
     }
 }
