@@ -17,23 +17,14 @@ namespace P2PChat.App.UI
 
         private Rectangle NavigationButtonRect(int index)
         {
-            int size = WaTheme.S(42);
+            int size = WaTheme.S(44);
             if (index == 5)
                 return new Rectangle((NavigationRailWidth() - size) / 2,
                     ClientSize.Height - WaTheme.S(58), size, size);
             if (index == 6)
                 return new Rectangle((NavigationRailWidth() - size) / 2,
                     ClientSize.Height - WaTheme.S(112), size, size);
-            int y;
-            switch (index)
-            {
-                case 0: y = 10; break;
-                case 1: y = 66; break;
-                case 2: y = 122; break;
-                case 3: y = 178; break;
-                case 4: y = 246; break;
-                default: y = 246; break;
-            }
+            int y = 12 + index * 54;
             return new Rectangle((NavigationRailWidth() - size) / 2, WaTheme.S(y), size, size);
         }
 
@@ -80,10 +71,14 @@ namespace P2PChat.App.UI
                 bool active = _activeNav == i;
                 if (active || _hoverNav == i)
                 {
-                    using (SolidBrush b = new SolidBrush(active ? WaTheme.Selected : WaTheme.Hover))
-                        g.FillEllipse(b, r);
+                    Color fill = active
+                        ? Color.FromArgb(WaTheme.Dark ? 42 : 24, WaTheme.Accent)
+                        : WaTheme.Hover;
+                    using (SolidBrush b = new SolidBrush(fill))
+                    using (GraphicsPath p = WaTheme.RoundRect(r.X, r.Y, r.Width, r.Height, WaTheme.S(14)))
+                        g.FillPath(b, p);
                 }
-                Color c = active ? WaTheme.TextDark : WaTheme.IconGray;
+                Color c = active ? WaTheme.Accent : WaTheme.IconGray;
                 int inset = WaTheme.S(11);
                 if (i == 0) DrawChatIcon(g, r, c);
                 else if (i == 1) WaIcons.Phone(g, r.X + inset, r.Y + inset, r.Width - inset * 2, c);
@@ -106,7 +101,7 @@ namespace P2PChat.App.UI
             }
 
             using (Pen sep = new Pen(WaTheme.Divider))
-                g.DrawLine(sep, WaTheme.S(14), WaTheme.S(300), NavigationRailWidth() - WaTheme.S(14), WaTheme.S(300));
+                g.DrawLine(sep, WaTheme.S(14), WaTheme.S(292), NavigationRailWidth() - WaTheme.S(14), WaTheme.S(292));
 
             Rectangle profile = NavigationButtonRect(5);
             WaTheme.DrawAvatar(g, new Rectangle(profile.X + WaTheme.S(5), profile.Y + WaTheme.S(5),

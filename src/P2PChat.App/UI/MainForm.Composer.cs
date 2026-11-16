@@ -115,10 +115,23 @@ namespace P2PChat.App.UI
             {
                 p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.DrawArc(p, x + s * 0.18f, y + s * 0.40f, s * 0.50f, s * 0.60f, 90, 180);
-                g.DrawArc(p, x + s * 0.31f, y + s * 0.50f, s * 0.22f, s * 0.42f, 60, 210);
-                g.DrawLine(p, x + s * 0.70f, y + s * 0.05f, x + s * 0.42f, y + s * 0.26f);
-                g.DrawLine(p, x + s * 0.78f, y + s * 0.20f, x + s * 0.42f, y + s * 0.34f);
+                using (GraphicsPath outer = new GraphicsPath())
+                using (GraphicsPath inner = new GraphicsPath())
+                {
+                    outer.StartFigure();
+                    outer.AddBezier(x + s * .68f, y + s * .14f, x + s * .88f, y + s * .28f,
+                        x + s * .78f, y + s * .46f, x + s * .61f, y + s * .63f);
+                    outer.AddLine(x + s * .61f, y + s * .63f, x + s * .43f, y + s * .81f);
+                    outer.AddBezier(x + s * .43f, y + s * .81f, x + s * .18f, y + s * .72f,
+                        x + s * .22f, y + s * .53f, x + s * .39f, y + s * .36f);
+                    outer.AddLine(x + s * .39f, y + s * .36f, x + s * .62f, y + s * .13f);
+                    inner.StartFigure();
+                    inner.AddBezier(x + s * .63f, y + s * .30f, x + s * .69f, y + s * .34f,
+                        x + s * .65f, y + s * .40f, x + s * .56f, y + s * .50f);
+                    inner.AddLine(x + s * .56f, y + s * .50f, x + s * .40f, y + s * .66f);
+                    g.DrawPath(p, outer);
+                    g.DrawPath(p, inner);
+                }
             }
         }
 
