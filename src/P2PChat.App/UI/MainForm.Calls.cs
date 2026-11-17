@@ -131,6 +131,7 @@ namespace P2PChat.App.UI
             _audioCall = new WebRtcAudioCall(video);
             _audioCall.StateChanged += OnAudioCallStateChanged;
             _audioCall.VideoFrameReceived += OnVideoFrameReceived;
+            _audioCall.LocalVideoFrameReceived += OnLocalVideoFrameReceived;
             _audioCall.VideoStatusChanged += OnVideoStatusChanged;
             _callDialog = new AudioCallDialog(peerName, incoming, video);
             _callDialog.HangupRequested += OnHangupRequested;
@@ -146,6 +147,17 @@ namespace P2PChat.App.UI
             {
                 if (_callDialog == null || _callDialog.IsDisposed) { frame.Dispose(); return; }
                 _callDialog.SetRemoteFrame(frame);
+            }); }
+            catch { frame.Dispose(); }
+        }
+
+        private void OnLocalVideoFrameReceived(System.Drawing.Bitmap frame)
+        {
+            if (IsDisposed || !IsHandleCreated) { frame.Dispose(); return; }
+            try { BeginInvoke((Action)delegate
+            {
+                if (_callDialog == null || _callDialog.IsDisposed) { frame.Dispose(); return; }
+                _callDialog.SetLocalFrame(frame);
             }); }
             catch { frame.Dispose(); }
         }
@@ -227,6 +239,7 @@ namespace P2PChat.App.UI
             {
                 call.StateChanged -= OnAudioCallStateChanged;
                 call.VideoFrameReceived -= OnVideoFrameReceived;
+                call.LocalVideoFrameReceived -= OnLocalVideoFrameReceived;
                 call.VideoStatusChanged -= OnVideoStatusChanged;
                 try { call.Dispose(); } catch { }
             }

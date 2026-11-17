@@ -43,6 +43,7 @@ namespace P2PChat.App.Audio
 
         internal event Action<RTCPeerConnectionState> StateChanged;
         internal event Action<Bitmap> VideoFrameReceived;
+        internal event Action<Bitmap> LocalVideoFrameReceived;
         internal event Action<string> VideoStatusChanged;
 
         internal WebRtcAudioCall(bool videoEnabled) { _videoEnabled = videoEnabled; }
@@ -162,6 +163,19 @@ namespace P2PChat.App.Audio
                 using (Bitmap frame = new Bitmap(e.Frame, new Size(320, 240)))
                 using (MemoryStream stream = new MemoryStream())
                 {
+                    Action<Bitmap> localHandler = LocalVideoFrameReceived;
+                    if (localHandler != null)
+                    {
+                        Bitmap preview = null;
+                        try
+                        {
+                            preview = new Bitmap(frame);
+                            localHandler(preview);
+                            preview = null;
+                        }
+                        catch { }
+                        finally { if (preview != null) preview.Dispose(); }
+                    }
                     ImageCodecInfo jpeg = ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
                     using (EncoderParameters parameters = new EncoderParameters(1))
                     {
