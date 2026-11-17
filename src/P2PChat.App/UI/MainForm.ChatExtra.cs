@@ -172,6 +172,55 @@ namespace P2PChat.App.UI
 
             if (!string.IsNullOrEmpty(m.Reaction))
                 PaintReaction(g, m.Reaction, mine, x, y, h);
+
+            if (_selectMessagesMode || _selectedMessageIds.Contains(m.Id))
+                PaintMessageSelection(g, m, x, y);
+            if (c.HoverMsgId == m.Id)
+                PaintBubbleMenuButton(g, m.IsMine ? x + w + WaTheme.S(4) : x - WaTheme.S(26), y);
+        }
+
+        private void PaintBubbleMenuButton(Graphics g, int x, int y)
+        {
+            int size = WaTheme.S(22);
+            Rectangle button = new Rectangle(x, y + WaTheme.S(4), size, size);
+            using (SolidBrush bg = new SolidBrush(WaTheme.Dark
+                ? Color.FromArgb(235, 42, 57, 66) : Color.FromArgb(240, 255, 255, 255)))
+                g.FillEllipse(bg, button);
+            using (Pen p = new Pen(WaTheme.IconGray, WaTheme.S(1.6f)))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                p.LineJoin = LineJoin.Round;
+                float cx = button.X + button.Width / 2f;
+                float cy = button.Y + button.Height / 2f;
+                g.DrawLines(p, new PointF[] {
+                    new PointF(cx - WaTheme.S(4), cy - WaTheme.S(1)),
+                    new PointF(cx, cy + WaTheme.S(3)),
+                    new PointF(cx + WaTheme.S(4), cy - WaTheme.S(1))
+                });
+            }
+        }
+
+        private void PaintMessageSelection(Graphics g, ChatMessage message, int x, int y)
+        {
+            bool selected = _selectedMessageIds.Contains(message.Id);
+            int d = WaTheme.S(18);
+            Rectangle badge = new Rectangle(x - WaTheme.S(23), y + WaTheme.S(7), d, d);
+            using (Pen edge = new Pen(selected ? WaTheme.Accent : WaTheme.TextGray, WaTheme.S(1.5f)))
+            using (SolidBrush fill = new SolidBrush(selected ? WaTheme.Accent : Color.Transparent))
+            {
+                g.FillEllipse(fill, badge);
+                g.DrawEllipse(edge, badge);
+                if (selected)
+                {
+                    edge.Color = Color.White;
+                    g.DrawLines(edge, new PointF[] {
+                        new PointF(badge.X + WaTheme.S(4), badge.Y + WaTheme.S(9)),
+                        new PointF(badge.X + WaTheme.S(7), badge.Y + WaTheme.S(12)),
+                        new PointF(badge.X + WaTheme.S(14), badge.Y + WaTheme.S(5))
+                    });
+                }
+            }
         }
 
         private void PaintTextContent(Graphics g, ChatMessage m, bool mine, int ix, int iy, int iw)

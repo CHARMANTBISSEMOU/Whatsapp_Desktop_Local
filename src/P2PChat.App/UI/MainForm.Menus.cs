@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Drawing;
@@ -216,32 +217,172 @@ namespace P2PChat.App.UI
         private void ShowBubbleMenu(ChatMessage msg, Point screenPt)
         {
             if (msg == null) return;
-            ContextMenuStrip menu = new ContextMenuStrip();
-            menu.Font = WaTheme.Text(9.8f);
-            menu.BackColor = WaTheme.MenuBg;
-            menu.ForeColor = WaTheme.TextDark;
-            menu.Items.Add("Répondre", null, delegate { SetReply(msg); });
-            if (msg.Kind == MessageKind.File || msg.Kind == MessageKind.Image)
-                menu.Items.Add("Ouvrir le fichier", null, delegate { OpenMessageFile(msg); });
+            WaMenu menu = new WaMenu();
+            Settings.PeerLocal local = Cfg.Peer(msg.PeerId);
+            menu.Add("Répondre", delegate { SetReply(msg); }, MenuGlyph("↶"));
             if (msg.Kind == MessageKind.Text && !string.IsNullOrEmpty(msg.Text))
-                menu.Items.Add("Copier le texte", null, delegate { CopyMessageText(msg); });
-            else if ((msg.Kind == MessageKind.File || msg.Kind == MessageKind.Image || msg.Kind == MessageKind.Voice) && !string.IsNullOrEmpty(msg.LocalPath))
-                menu.Items.Add("Copier le fichier", null, delegate { CopyMessageFile(msg); });
-            if (msg.IsMine && msg.Kind == MessageKind.Text)
-                menu.Items.Add("Modifier", null, delegate { EditMessage(msg); });
-            menu.Items.Add("Réagir 👍", null, delegate { React(msg, "👍"); });
-            menu.Items.Add("Réagir ❤️", null, delegate { React(msg, "❤️"); });
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Supprimer pour moi", null, delegate
+                menu.Add("Copier", delegate { CopyMessageText(msg); }, MenuGlyph("▢"));
+            else if (!string.IsNullOrEmpty(msg.LocalPath))
             {
-                msg.Deleted = true;
-                PersistMessage(msg);
-                Invalidate();
-            });
-            if (msg.IsMine)
-                menu.Items.Add("Supprimer pour tous", null, delegate { DeleteForAll(msg); });
-            menu.Closed += delegate { menu.Dispose(); };
-            menu.Show(this, PointToClient(screenPt));
+                menu.Add("Ouvrir", delegate { OpenMessageFile(msg); }, MenuGlyph("↗"));
+                menu.Add("Copier le fichier", delegate { CopyMessageFile(msg); }, MenuGlyph("▢"));
+            }
+            menu.Add("Transférer", delegate { ForwardMessage(msg); }, MenuGlyph("➜"));
+            menu.Add(local.PinnedMessageId == msg.Id ? "Désépingler" : "Épingler",
+                delegate { ToggleMessagePin(msg); }, MenuGlyph("⌖"));
+            bool important = local.ImportantMessageIds.Contains(msg.Id);
+            menu.Add(important ? "Retirer des importants" : "Marquer comme important",
+                delegate { ToggleMessageImportant(msg); }, MenuGlyph("★"));
+            menu.Add("Sélectionner", delegate { ToggleMessageSelection(msg); }, MenuGlyph("☑"));
+            if (msg.IsMine && msg.Kind == MessageKind.Text && !msg.Deleted)
+                menu.Add("Modifier", delegate { EditMessage(msg); }, MenuGlyph("✎"));
+            if (!msg.IsMine)
+                menu.Add("Signaler", delegate { ReportMessage(msg); }, MenuGlyph("⚑"));
+            menu.AddSep();
+            menu.Add("Supprimer pour moi", delegate { DeleteForMe(msg); }, MenuGlyph("⌫"));
+            if (msg.IsMine) menu.Add("Supprimer pour tous", delegate { DeleteForAll(msg); }, MenuGlyph("⌫"));
+            menu.ShowAt(screenPt, WaTheme.S(3));
+        }
+
+        private Action<Graphics, float, float, float, Color> MenuGlyph(string glyph)
+        {
+            return delegate(Graphics g, float x, float y, float size, Color color)
+            {
+                using (Font f = new Font("Segoe UI Symbol", Math.Max(9f, size * 0.68f), FontStyle.Regular, GraphicsUnit.Pixel))
+                using (SolidBrush b = new SolidBrush(color))
+                {
+                    SizeF measured = g.MeasureString(glyph, f);
+                    g.DrawString(glyph, f, b, x + (size - measured.Width) / 2f,
+                        y + (size - measured.Height) / 2f - 1);
+                }
+            };
+        }
+
+        private void DeleteForMe(ChatMessage msg)
+        {
+            if (msg == null) return;
+            msg.Deleted = true;
+            msg.Text = "";
+            msg.Reaction = null;
+            PersistMessage(msg);
+            Conversation c = Conv(msg.PeerId);
+            if (c != null) { c.InvalidateLayout(); RelayoutChat(true); }
+            Invalidate();
+        }
+
+        private void ToggleMessagePin(ChatMessage msg)
+        {
+            if (msg == null) return;
+            Settings.PeerLocal local = Cfg.Peer(msg.PeerId);
+            local.PinnedMessageId = local.PinnedMessageId == msg.Id ? null : msg.Id;
+            Cfg.Save();
+            _toasts.Show(local.PinnedMessageId == null ? "Message désépinglé." : "Message épinglé.");
+            Invalidate(ChatRect());
+        }
+
+        private void ToggleMessageImportant(ChatMessage msg)
+        {
+            if (msg == null) return;
+            Settings.PeerLocal local = Cfg.Peer(msg.PeerId);
+            if (local.ImportantMessageIds.Contains(msg.Id)) local.ImportantMessageIds.Remove(msg.Id);
+            else local.ImportantMessageIds.Add(msg.Id);
+            Cfg.Save();
+            _toasts.Show(local.ImportantMessageIds.Contains(msg.Id)
+                ? "Message marqué comme important." : "Message retiré des importants.");
+        }
+
+        private void ToggleMessageSelection(ChatMessage msg)
+        {
+            if (msg == null) return;
+            if (_selectedMessageIds.Contains(msg.Id)) _selectedMessageIds.Remove(msg.Id);
+            else _selectedMessageIds.Add(msg.Id);
+            _selectMessagesMode = _selectedMessageIds.Count > 0;
+            _toasts.Show(_selectMessagesMode
+                ? _selectedMessageIds.Count + " message(s) sélectionné(s). Échap pour quitter."
+                : "Sélection annulée.");
+            Invalidate(StreamRect());
+        }
+
+        private void ReportMessage(ChatMessage msg)
+        {
+            if (msg == null || msg.IsMine) return;
+            DialogResult result = MessageBox.Show(this,
+                "P2PChat n’a pas de service central de signalement. Voulez-vous bloquer cet expéditeur sur cet appareil ?",
+                "Signaler le message", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result != DialogResult.Yes) return;
+            string sender = IsGroup(msg.PeerId) ? msg.SenderId : msg.PeerId;
+            if (!string.IsNullOrEmpty(sender) && !Cfg.BlockedIds.Contains(sender)) Cfg.BlockedIds.Add(sender);
+            Cfg.Save();
+            _toasts.Show("Expéditeur bloqué sur cet appareil.");
+        }
+
+        private void ForwardMessage(ChatMessage msg)
+        {
+            if (msg == null || msg.Deleted) return;
+            List<Conversation> targets = new List<Conversation>();
+            foreach (Conversation candidate in _convs.Values)
+                if (candidate.PeerId != msg.PeerId && !string.IsNullOrEmpty(candidate.PeerId)) targets.Add(candidate);
+            if (targets.Count == 0) { _toasts.Show("Aucune autre discussion disponible pour le transfert."); return; }
+
+            using (Form dialog = new Form())
+            {
+                dialog.Text = "Transférer le message";
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.MinimizeBox = dialog.MaximizeBox = false;
+                dialog.ClientSize = new Size(340, 320);
+                ListBox list = new ListBox { Bounds = new Rectangle(12, 12, 316, 250), IntegralHeight = false };
+                foreach (Conversation candidate in targets) list.Items.Add(candidate.PeerName);
+                list.SelectedIndex = 0;
+                Button send = new Button { Text = "Transférer", DialogResult = DialogResult.OK, Bounds = new Rectangle(212, 276, 116, 30) };
+                Button cancel = new Button { Text = "Annuler", DialogResult = DialogResult.Cancel, Bounds = new Rectangle(92, 276, 108, 30) };
+                dialog.Controls.AddRange(new Control[] { list, send, cancel });
+                dialog.AcceptButton = send;
+                dialog.CancelButton = cancel;
+                if (dialog.ShowDialog(this) != DialogResult.OK || list.SelectedIndex < 0) return;
+                Conversation target = targets[list.SelectedIndex];
+                if (msg.Kind == MessageKind.Text)
+                {
+                    ChatMessage forwarded = ChatMessage.NewText(_self.Id, target.PeerId, true, msg.Text ?? "");
+                    AppendLocalMessage(target, forwarded);
+                    SendTextWithFeedback(target, forwarded);
+                    _toasts.Show("Message transféré.");
+                    return;
+                }
+                if (string.IsNullOrEmpty(msg.LocalPath) || !System.IO.File.Exists(msg.LocalPath))
+                {
+                    _toasts.Show("Le fichier de ce message n’est pas disponible sur cet appareil.");
+                    return;
+                }
+                ChatMessage transfer = new ChatMessage {
+                    Id = Guid.NewGuid().ToString("N"), Kind = msg.Kind, SenderId = _self.Id,
+                    PeerId = target.PeerId, IsMine = true, Text = msg.Text, TimestampUtc = ChatMessage.NowUtcMs(),
+                    Status = DeliveryStatus.Pending, LocalPath = msg.LocalPath, FileName = msg.FileName,
+                    FileSize = msg.FileSize, Waveform = msg.Waveform, VoiceDurationSec = msg.VoiceDurationSec
+                };
+                AppendLocalMessage(target, transfer);
+                if (IsGroup(target.PeerId)) SendGroupTransfer(target, transfer, transfer.Kind == MessageKind.Voice);
+                else SendForwardedTransfer(target, transfer);
+            }
+        }
+
+        private async void SendForwardedTransfer(Conversation target, ChatMessage message)
+        {
+            bool sent = false;
+            try
+            {
+                sent = message.Kind == MessageKind.Voice
+                    ? await _net.SendVoiceAsync(target.PeerId, message)
+                    : await _net.SendFileAsync(target.PeerId, message);
+            }
+            catch { sent = false; }
+            if (!sent)
+            {
+                message.Status = DeliveryStatus.Failed;
+                PersistMessage(message);
+                Invalidate(StreamRect());
+                _toasts.Show("Le transfert a échoué. Vérifiez que le contact est connecté.");
+            }
         }
 
         private void CopyMessageText(ChatMessage msg)

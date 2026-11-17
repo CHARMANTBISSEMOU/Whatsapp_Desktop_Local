@@ -40,6 +40,8 @@ namespace P2PChat.App.UI
         private readonly Dictionary<string, Conversation> _convs =
             new Dictionary<string, Conversation>();
         private readonly HashSet<string> _textSendInFlight = new HashSet<string>();
+        private readonly HashSet<string> _selectedMessageIds = new HashSet<string>();
+        private bool _selectMessagesMode;
         private readonly List<string> _order = new List<string>();
         private string _selectedId;
         private string _hoverRowId;
@@ -96,6 +98,7 @@ namespace P2PChat.App.UI
             WaTheme.FontStep = Cfg.FontStepInt;
 
             Text = "P2PChat";
+            KeyPreview = true;
             DoubleBuffered = true;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
@@ -621,6 +624,18 @@ namespace P2PChat.App.UI
                     if (oldScroll != _chatScroll) Invalidate(ChatRect());
                 }
             }
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Escape && _selectMessagesMode)
+            {
+                _selectedMessageIds.Clear();
+                _selectMessagesMode = false;
+                Invalidate(StreamRect());
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         // ---------------------------------------------------------------- thème

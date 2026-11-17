@@ -14,7 +14,9 @@ namespace P2PChat.App.Settings
         public bool Pinned;
         public bool Muted;
         public bool MarkedUnread;
-    public bool Archived;
+        public bool Archived;
+        public string PinnedMessageId;
+        public List<string> ImportantMessageIds = new List<string>();
     }
 
 public sealed class ContactLocal
@@ -120,6 +122,8 @@ public sealed class ContactLocal
                         p.Muted = MiniJson.AsBool(pd, "mute");
                         p.MarkedUnread = MiniJson.AsBool(pd, "unread");
                         p.Archived = MiniJson.AsBool(pd, "archived");
+                        p.PinnedMessageId = MiniJson.AsString(pd, "pinnedMessage");
+                        LoadStringList(MiniJson.AsList(pd, "importantMessages"), p.ImportantMessageIds);
                         s.Peers[kv.Key] = p;
                     }
                 }
@@ -226,6 +230,10 @@ public sealed class ContactLocal
                     pd["mute"] = kv.Value.Muted;
                     pd["unread"] = kv.Value.MarkedUnread;
                     pd["archived"] = kv.Value.Archived;
+                    pd["pinnedMessage"] = kv.Value.PinnedMessageId;
+                    List<object> importantMessages = new List<object>();
+                    foreach (string id in kv.Value.ImportantMessageIds) importantMessages.Add(id);
+                    pd["importantMessages"] = importantMessages;
                     peers[kv.Key] = pd;
                 }
                 d["peers"] = peers;

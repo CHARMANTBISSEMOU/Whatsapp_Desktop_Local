@@ -23,7 +23,7 @@ namespace P2PChat.App.UI
                 StreamItem it = items[i];
                 if (it.Kind != 2) continue;
                 Rectangle r = new Rectangle(st.X + it.Rect.X, it.Rect.Y + off, it.Rect.Width, it.Rect.Height);
-                if (r.Contains(p)) return it;
+                if (r.Contains(p) || BubbleActionRect(it).Contains(p)) return it;
             }
             return default(StreamItem);
         }
@@ -33,6 +33,16 @@ namespace P2PChat.App.UI
             Rectangle st = StreamRect();
             int off = StreamOffset(Selected(), st);
             return new Rectangle(st.X + it.Rect.X, it.Rect.Y + off, it.Rect.Width, it.Rect.Height);
+        }
+
+        private Rectangle BubbleActionRect(StreamItem it)
+        {
+            Rectangle bubble = BubbleScreenRect(it);
+            int size = WaTheme.S(22);
+            int x = it.Msg != null && it.Msg.IsMine
+                ? bubble.Right + WaTheme.S(4)
+                : bubble.X - size - WaTheme.S(4);
+            return new Rectangle(x, bubble.Y + WaTheme.S(4), size, size);
         }
 
         private void ChatMouseMove(Point p)
@@ -63,7 +73,8 @@ namespace P2PChat.App.UI
             {
                 StreamItem it = HitStreamItem(p);
                 if (it.Kind == 2 && it.Msg != null) hover = it.Msg.Id;
-                Cursor = it.Kind == 2 && it.Msg != null &&
+                Cursor = it.Kind == 2 && it.Msg != null && BubbleActionRect(it).Contains(p)
+                    ? Cursors.Hand : it.Kind == 2 && it.Msg != null &&
                     (it.Msg.Kind == MessageKind.File || it.Msg.Kind == MessageKind.Image)
                     ? Cursors.Hand : Cursors.Default;
             }
@@ -140,6 +151,17 @@ namespace P2PChat.App.UI
             if (hit.Kind == 2 && hit.Msg != null)
             {
                 ChatMessage m = hit.Msg;
+                if (BubbleActionRect(hit).Contains(p))
+                {
+                    Rectangle action = BubbleActionRect(hit);
+                    ShowBubbleMenu(m, PointToScreen(new Point(action.X, action.Bottom)));
+                    return;
+                }
+                if (_selectMessagesMode)
+                {
+                    ToggleMessageSelection(m);
+                    return;
+                }
                 if (m.Kind == MessageKind.Voice) ToggleVoice(c, m);
                 else if (m.Kind == MessageKind.File || m.Kind == MessageKind.Image) OpenMessageFile(m);
                 else
