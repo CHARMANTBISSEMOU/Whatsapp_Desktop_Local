@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using P2PChat.App.Audio;
 using P2PChat.Core.Protocol;
@@ -15,6 +16,7 @@ namespace P2PChat.App.UI
         private string _callPeerName;
         private DateTime? _callConnectedAt;
         private bool _callIncoming;
+        private bool _callVideo;
 
         private void StartAudioCall()
         {
@@ -24,6 +26,12 @@ namespace P2PChat.App.UI
         }
 
         private async void StartAudioCall(string peerId)
+        { await StartCallAsync(peerId, false); }
+
+        private async void StartVideoCall(string peerId)
+        { await StartCallAsync(peerId, true); }
+
+        private async Task StartCallAsync(string peerId, bool video)
         {
             Conversation c = Conv(peerId);
             if (c == null || IsGroup(c.PeerId)) return;
@@ -44,12 +52,13 @@ namespace P2PChat.App.UI
             _callId = Guid.NewGuid().ToString("N");
             _callConnectedAt = null;
             _callIncoming = false;
-            CreateAudioCall(c.PeerName, false);
+            _callVideo = video;
+            CreateAudioCall(c.PeerName, false, video);
             try
             {
                 string offer = await _audioCall.CreateOfferAsync();
                 bool sent = await _net.SendCallSignalAsync(_callPeerId, new CallSignal
-                { CallId = _callId, Action = "offer", Sdp = offer });
+                { CallId = _callId, Action = "offer", Sdp = offer, Video = video });
                 if (!sent) EndAudioCall(false, "Impossible de joindre ce contact.");
             }
             catch (Exception ex) { EndAudioCall(false, "L’appel n’a pas pu démarrer : " + ex.Message); }
@@ -69,8 +78,9 @@ namespace P2PChat.App.UI
                 }
                 PeerInfo peer = FindPeer(peerId);
                 string name = peer == null ? "Contact" : peer.Pseudo;
-                DialogResult result = MessageBox.Show(this, name + " vous appelle en audio.\n\nVoulez-vous répondre ?",
-                    "Appel audio entrant", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                string callType = signal.Video ? "vidéo" : "audio";
+                DialogResult result = MessageBox.Show(this, name + " vous appelle en " + callType + ".\n\nVoulez-vous répondre ?",
+                    "Appel " + callType + " entrant", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (result != DialogResult.Yes)
                 {
                     AddCallHistory(peerId, name, "Refusé", true, 0);
@@ -84,7 +94,8 @@ namespace P2PChat.App.UI
                 _callId = signal.CallId;
                 _callConnectedAt = null;
                 _callIncoming = true;
-                CreateAudioCall(name, true);
+                _callVideo = signal.Video;
+                CreateAudioCall(name, true, signal.Video);
                 try
                 {
                     string answer = await _audioCall.AcceptOfferAsync(signal.Sdp);
@@ -107,15 +118,36 @@ namespace P2PChat.App.UI
             else if (signal.Action == "hangup") EndAudioCall(false, null);
         }
 
-        private void CreateAudioCall(string peerName, bool incoming)
+        private void CreateAudioCall(string peerName, bool incoming, bool video)
         {
-            _audioCall = new WebRtcAudioCall();
+            _audioCall = new WebRtcAudioCall(video);
             _audioCall.StateChanged += OnAudioCallStateChanged;
-            _callDialog = new AudioCallDialog(peerName, incoming);
+            _audioCall.VideoFrameReceived += OnVideoFrameReceived;
+            _audioCall.VideoStatusChanged += OnVideoStatusChanged;
+            _callDialog = new AudioCallDialog(peerName, incoming, video);
             _callDialog.HangupRequested += OnHangupRequested;
             _callDialog.MuteToggled += OnMuteToggled;
             _callDialog.FormClosed += OnCallDialogClosed;
             _callDialog.Show(this);
+        }
+
+        private void OnVideoFrameReceived(System.Drawing.Bitmap frame)
+        {
+            if (IsDisposed || !IsHandleCreated) { frame.Dispose(); return; }
+            try { BeginInvoke((Action)delegate
+            {
+                if (_callDialog == null || _callDialog.IsDisposed) { frame.Dispose(); return; }
+                _callDialog.SetRemoteFrame(frame);
+            }); }
+            catch { frame.Dispose(); }
+        }
+
+        private void OnVideoStatusChanged(string status)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try { BeginInvoke((Action)delegate
+            { if (_callDialog != null && !_callDialog.IsDisposed) _callDialog.SetVideoStatus(status); }); }
+            catch { }
         }
 
         private void OnAudioCallStateChanged(RTCPeerConnectionState state)
@@ -130,7 +162,7 @@ namespace P2PChat.App.UI
                     _callDialog.SetCallState("Connecté");
                 }
                 else if (state == RTCPeerConnectionState.connecting) _callDialog.SetCallState("Connexion en cours…");
-                else if (state == RTCPeerConnectionState.failed) EndAudioCall(true, "Connexion audio impossible.");
+                else if (state == RTCPeerConnectionState.failed) EndAudioCall(true, _callVideo ? "Connexion vidéo impossible." : "Connexion audio impossible.");
                 else if (state == RTCPeerConnectionState.disconnected) _callDialog.SetCallState("Reconnexion…");
             }); }
             catch (InvalidOperationException) { }
@@ -169,9 +201,12 @@ namespace P2PChat.App.UI
             _callId = null;
             _callPeerName = null;
             _callConnectedAt = null;
+            _callVideo = false;
             if (call != null)
             {
                 call.StateChanged -= OnAudioCallStateChanged;
+                call.VideoFrameReceived -= OnVideoFrameReceived;
+                call.VideoStatusChanged -= OnVideoStatusChanged;
                 try { call.Dispose(); } catch { }
             }
             if (dialog != null && !dialog.IsDisposed)

@@ -9,12 +9,13 @@ namespace P2PChat.Core.Protocol
         public string CallId;
         public string Action;
         public string Sdp;
+        public bool Video;
 
         public Dictionary<string, object> ToDict()
         {
             return new Dictionary<string, object>
             {
-                { "id", CallId ?? "" }, { "a", Action ?? "" }, { "sdp", Sdp ?? "" }
+                { "id", CallId ?? "" }, { "a", Action ?? "" }, { "sdp", Sdp ?? "" }, { "video", Video }
             };
         }
 
@@ -25,7 +26,8 @@ namespace P2PChat.Core.Protocol
             {
                 CallId = MiniJson.AsString(d, "id", ""),
                 Action = MiniJson.AsString(d, "a", ""),
-                Sdp = MiniJson.AsString(d, "sdp", "")
+                Sdp = MiniJson.AsString(d, "sdp", ""),
+                Video = MiniJson.AsString(d, "video", "false") == "true"
             };
         }
     }

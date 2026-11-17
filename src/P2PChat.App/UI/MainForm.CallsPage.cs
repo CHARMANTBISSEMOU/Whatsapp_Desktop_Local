@@ -52,6 +52,13 @@ namespace P2PChat.App.UI
                 main.Y + main.Height / 2 + WaTheme.S(105), width, height);
         }
 
+        private Rectangle CallsVideoButtonRect()
+        {
+            Rectangle main = CallsMainButtonRect();
+            int width = WaTheme.S(190), gap = WaTheme.S(12);
+            return new Rectangle(main.Right + gap, main.Y, width, main.Height);
+        }
+
         private int CallsListScrollMax()
         {
             int rowH = WaTheme.S(76);
@@ -226,6 +233,16 @@ namespace P2PChat.App.UI
             using (Font f = WaTheme.Semi(10f))
             using (SolidBrush b = new SolidBrush(Color.White))
                 g.DrawString("Appel audio", f, b, button.X + WaTheme.S(54), button.Y + WaTheme.S(14));
+            Rectangle videoButton = CallsVideoButtonRect();
+            using (SolidBrush b = new SolidBrush(contact.Online ? WaTheme.Accent : WaTheme.TextGray))
+            using (GraphicsPath p = WaTheme.RoundRect(videoButton.X, videoButton.Y, videoButton.Width, videoButton.Height, videoButton.Height / 2f))
+                g.FillPath(b, p);
+            using (Font f = WaTheme.Semi(10f))
+            using (SolidBrush b = new SolidBrush(Color.White))
+            {
+                g.DrawString("▣", f, b, videoButton.X + WaTheme.S(22), videoButton.Y + WaTheme.S(14));
+                g.DrawString("Appel vidéo", f, b, videoButton.X + WaTheme.S(54), videoButton.Y + WaTheme.S(14));
+            }
             CallHistoryItem call = LastCall(contact.PeerId);
             if (call != null)
             {
@@ -252,7 +269,7 @@ namespace P2PChat.App.UI
                 button = CallsRowButtonRect(row).Contains(p);
                 break;
             }
-            if (CallsMainButtonRect().Contains(p)) { id = _callPagePeerId; button = true; }
+            if (CallsMainButtonRect().Contains(p) || CallsVideoButtonRect().Contains(p)) { id = _callPagePeerId; button = true; }
             if (id != _hoverCallPeerId || button != _hoverCallButton)
             {
                 _hoverCallPeerId = id;
@@ -268,6 +285,11 @@ namespace P2PChat.App.UI
             if (_callPagePeerId != null && CallsMainButtonRect().Contains(p))
             {
                 StartAudioCall(_callPagePeerId);
+                return;
+            }
+            if (_callPagePeerId != null && CallsVideoButtonRect().Contains(p))
+            {
+                StartVideoCall(_callPagePeerId);
                 return;
             }
             List<Conversation> peers = CallsPagePeers();

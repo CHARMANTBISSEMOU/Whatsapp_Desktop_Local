@@ -3,6 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
+using AForge.Video;
+using AForge.Video.DirectShow;
 using NAudio.Wave;
 using SIPSorcery.Media;
 using SIPSorcery.Net;
@@ -25,16 +32,25 @@ namespace P2PChat.App.Audio
         private AudioFormat _sendFormat;
         private bool _hasSendFormat;
         private bool _muted;
+        private readonly bool _videoEnabled;
+        private VideoCaptureDevice _camera;
+        private RTCDataChannel _videoChannel;
+        private long _lastVideoFrameTicks;
         private int _disposeStarted;
         private volatile bool _disposed;
 
         internal event Action<RTCPeerConnectionState> StateChanged;
+        internal event Action<Bitmap> VideoFrameReceived;
+        internal event Action<string> VideoStatusChanged;
+
+        internal WebRtcAudioCall(bool videoEnabled) { _videoEnabled = videoEnabled; }
 
         internal bool IsMuted { get { return _muted; } }
 
         internal async Task<string> CreateOfferAsync()
         {
             CreatePeer();
+            await PrepareVideoOfferAsync().ConfigureAwait(false);
             RTCSessionDescriptionInit offer = _peer.createOffer(null);
             await SetLocalAndWaitForIceAsync(offer).ConfigureAwait(false);
             return _peer.localDescription == null ? offer.sdp : _peer.localDescription.sdp.ToString();
@@ -79,6 +95,102 @@ namespace P2PChat.App.Audio
             _peer.OnAudioFormatsNegotiated += OnAudioFormatsNegotiated;
             _peer.OnAudioFrameReceived += OnAudioFrameReceived;
             _peer.onconnectionstatechange += OnConnectionStateChanged;
+            if (_videoEnabled) _peer.ondatachannel += OnDataChannel;
+        }
+
+        private async Task PrepareVideoOfferAsync()
+        {
+            if (!_videoEnabled || _videoChannel != null) return;
+            _videoChannel = await _peer.createDataChannel("p2pchat-video", new RTCDataChannelInit
+            { ordered = false, maxRetransmits = 0 });
+            ConfigureVideoChannel(_videoChannel);
+        }
+
+        private void OnDataChannel(RTCDataChannel channel)
+        {
+            if (!_videoEnabled || channel == null || channel.label != "p2pchat-video") return;
+            _videoChannel = channel;
+            ConfigureVideoChannel(channel);
+        }
+
+        private void ConfigureVideoChannel(RTCDataChannel channel)
+        {
+            channel.onopen += StartCamera;
+            channel.onmessage += OnVideoMessage;
+            channel.onerror += OnVideoError;
+            if (channel.readyState == RTCDataChannelState.open) StartCamera();
+        }
+
+        private void OnVideoError(string error)
+        {
+            Action<string> handler = VideoStatusChanged;
+            try { if (handler != null) handler("Erreur vidéo : " + error); } catch { }
+        }
+
+        private void StartCamera()
+        {
+            if (!_videoEnabled || _disposed || _camera != null) return;
+            try
+            {
+                FilterInfoCollection cameras = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+                if (cameras.Count == 0) { RaiseVideoStatus("Aucune caméra détectée"); return; }
+                VideoCaptureDevice camera = new VideoCaptureDevice(cameras[0].MonikerString);
+                camera.VideoResolution = camera.VideoCapabilities
+                    .OrderBy(v => Math.Abs(v.FrameSize.Width - 640) + Math.Abs(v.FrameSize.Height - 360))
+                    .FirstOrDefault();
+                camera.NewFrame += OnCameraFrame;
+                _camera = camera;
+                camera.Start();
+                RaiseVideoStatus("Caméra active");
+            }
+            catch (Exception ex) { RaiseVideoStatus("Caméra indisponible : " + ex.Message); }
+        }
+
+        private void OnCameraFrame(object sender, NewFrameEventArgs e)
+        {
+            if (_disposed || _videoChannel == null || _videoChannel.readyState != RTCDataChannelState.open) return;
+            long now = Stopwatch.GetTimestamp();
+            long previous = Interlocked.Read(ref _lastVideoFrameTicks);
+            if (previous != 0 && (now - previous) < Stopwatch.Frequency / 5) return;
+            if (Interlocked.CompareExchange(ref _lastVideoFrameTicks, now, previous) != previous) return;
+            try
+            {
+                using (Bitmap frame = new Bitmap(e.Frame, new Size(320, 240)))
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    ImageCodecInfo jpeg = ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
+                    using (EncoderParameters parameters = new EncoderParameters(1))
+                    {
+                        parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 42L);
+                        frame.Save(stream, jpeg, parameters);
+                    }
+                    byte[] bytes = stream.ToArray();
+                    if (bytes.Length <= 60000) _videoChannel.send(bytes, 0, bytes.Length);
+                }
+            }
+            catch { }
+        }
+
+        private void OnVideoMessage(RTCDataChannel channel, DataChannelPayloadProtocols protocol, byte[] payload)
+        {
+            if (_disposed || payload == null || payload.Length < 4 || payload.Length > 60000) return;
+            try
+            {
+                using (MemoryStream stream = new MemoryStream(payload, false))
+                using (Image image = Image.FromStream(stream))
+                {
+                    Bitmap copy = new Bitmap(image);
+                    Action<Bitmap> handler = VideoFrameReceived;
+                    if (handler != null) handler(copy); else copy.Dispose();
+                }
+            }
+            catch { }
+        }
+
+        private void RaiseVideoStatus(string status)
+        {
+            Action<string> handler = VideoStatusChanged;
+            try { if (handler != null) handler(status); } catch { }
         }
 
         private async Task SetLocalAndWaitForIceAsync(RTCSessionDescriptionInit description)
@@ -246,6 +358,23 @@ namespace P2PChat.App.Audio
             if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
             _disposed = true;
             StopAudioDevices();
+            VideoCaptureDevice camera = _camera;
+            _camera = null;
+            if (camera != null)
+            {
+                try { camera.NewFrame -= OnCameraFrame; } catch { }
+                try { if (camera.IsRunning) camera.SignalToStop(); } catch { }
+                try { camera.WaitForStop(); } catch { }
+            }
+            RTCDataChannel videoChannel = _videoChannel;
+            _videoChannel = null;
+            if (videoChannel != null)
+            {
+                try { videoChannel.onopen -= StartCamera; } catch { }
+                try { videoChannel.onmessage -= OnVideoMessage; } catch { }
+                try { videoChannel.onerror -= OnVideoError; } catch { }
+                try { videoChannel.close(); } catch { }
+            }
             RTCPeerConnection peer = _peer;
             _peer = null;
             if (peer != null)
@@ -253,6 +382,7 @@ namespace P2PChat.App.Audio
                 try { peer.OnAudioFormatsNegotiated -= OnAudioFormatsNegotiated; } catch { }
                 try { peer.OnAudioFrameReceived -= OnAudioFrameReceived; } catch { }
                 try { peer.onconnectionstatechange -= OnConnectionStateChanged; } catch { }
+                try { peer.ondatachannel -= OnDataChannel; } catch { }
                 try { peer.close(); } catch { }
             }
             try { _encoder.Dispose(); } catch { }
