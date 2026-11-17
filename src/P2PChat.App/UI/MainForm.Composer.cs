@@ -286,13 +286,13 @@ namespace P2PChat.App.UI
             }
             _input.Text = "";
             AppendLocalMessage(c, m);
-            SendTextWithFeedback(c, m);
+            SendPendingMessage(c, m);
         }
 
-        private async void SendTextWithFeedback(Conversation conversation, ChatMessage message)
+        private async void SendPendingMessage(Conversation conversation, ChatMessage message)
         {
             if (conversation == null || message == null || string.IsNullOrEmpty(message.Id) ||
-                !_textSendInFlight.Add(message.Id)) return;
+                !_messageSendInFlight.Add(message.Id)) return;
             bool sent = false;
             try
             {
@@ -302,26 +302,37 @@ namespace P2PChat.App.UI
                     foreach (string member in GroupMembers(conversation.PeerId))
                     {
                         if (member == _self.Id) continue;
-                        sends.Add(_net.SendGroupTextAsync(member, message));
+                        if (message.Kind == MessageKind.Text)
+                            sends.Add(_net.SendGroupTextAsync(member, message));
+                        else if (message.Kind == MessageKind.Voice)
+                            sends.Add(_net.SendVoiceAsync(member, message));
+                        else sends.Add(_net.SendFileAsync(member, message));
                     }
                     bool[] results = await Task.WhenAll(sends);
                     for (int i = 0; i < results.Length; i++) sent |= results[i];
                 }
-                else sent = await _net.SendTextAsync(conversation.PeerId, message);
+                else if (message.Kind == MessageKind.Text)
+                    sent = await _net.SendTextAsync(conversation.PeerId, message);
+                else if (message.Kind == MessageKind.Voice)
+                    sent = await _net.SendVoiceAsync(conversation.PeerId, message);
+                else sent = await _net.SendFileAsync(conversation.PeerId, message);
             }
             catch { sent = false; }
             finally
             {
-                _textSendInFlight.Remove(message.Id);
+                _messageSendInFlight.Remove(message.Id);
             }
 
             if (!sent)
             {
                 bool waitingForPeer = !IsGroup(conversation.PeerId) && !IsPeerOnline(conversation.PeerId);
-                message.Status = waitingForPeer ? DeliveryStatus.Pending : DeliveryStatus.Failed;
+                bool sourceAvailable = message.Kind == MessageKind.Text ||
+                    (!string.IsNullOrEmpty(message.LocalPath) && File.Exists(message.LocalPath));
+                message.Status = sourceAvailable && (waitingForPeer || !IsGroup(conversation.PeerId))
+                    ? DeliveryStatus.Pending : DeliveryStatus.Failed;
                 PersistMessage(message);
                 Invalidate(StreamRect());
-                _toasts.Show(waitingForPeer
+                _toasts.Show(message.Status == DeliveryStatus.Pending
                     ? "Message en attente. Il sera envoyé à la reconnexion."
                     : "Message non envoyé. Réessayez.");
             }
@@ -334,9 +345,14 @@ namespace P2PChat.App.UI
             return false;
         }
 
-        private void RetryPendingTextMessages(string peerId = null)
+        private DateTime _lastPendingRetryUtc = DateTime.MinValue;
+
+        private void RetryPendingMessages(string peerId = null, bool force = false)
         {
             if (_closing || IsDisposed) return;
+            DateTime now = DateTime.UtcNow;
+            if (peerId == null && !force && (now - _lastPendingRetryUtc).TotalSeconds < 8) return;
+            if (peerId == null) _lastPendingRetryUtc = now;
             foreach (Conversation conversation in _convs.Values)
             {
                 if (IsGroup(conversation.PeerId) || (peerId != null && conversation.PeerId != peerId) ||
@@ -344,11 +360,18 @@ namespace P2PChat.App.UI
                 for (int i = 0; i < conversation.Messages.Count; i++)
                 {
                     ChatMessage message = conversation.Messages[i];
-                    if (message.IsMine && message.Kind == MessageKind.Text &&
-                        message.Status == DeliveryStatus.Pending)
-                        SendTextWithFeedback(conversation, message);
+                    if (!message.IsMine || message.Status != DeliveryStatus.Pending) continue;
+                    if (message.Kind != MessageKind.Text &&
+                        (string.IsNullOrEmpty(message.LocalPath) || !File.Exists(message.LocalPath)))
+                    {
+                        message.Status = DeliveryStatus.Failed;
+                        PersistMessage(message);
+                        continue;
+                    }
+                    SendPendingMessage(conversation, message);
                 }
             }
+            Invalidate(StreamRect());
         }
 
         private void AttachFiles()
@@ -385,9 +408,7 @@ namespace P2PChat.App.UI
             m.FileName = name;
             m.FileSize = new FileInfo(path).Length;
             AppendLocalMessage(c, m);
-            if (IsGroup(c.PeerId))
-                SendGroupTransfer(c, m, false);
-            else _net.SendFileAsync(c.PeerId, m);
+            SendPendingMessage(c, m);
         }
 
         private void StartRecording()
@@ -434,9 +455,7 @@ namespace P2PChat.App.UI
                 m.Waveform = wave;
                 m.VoiceDurationSec = Math.Max(1, dur);
                 AppendLocalMessage(c, m);
-                if (IsGroup(c.PeerId))
-                    SendGroupTransfer(c, m, true);
-                else _net.SendVoiceAsync(c.PeerId, m);
+                SendPendingMessage(c, m);
             }
             else if (path != null)
             {

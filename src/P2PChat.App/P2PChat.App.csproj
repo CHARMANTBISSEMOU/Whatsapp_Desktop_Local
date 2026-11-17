@@ -60,6 +60,7 @@
     <Compile Include="Theme\WaTheme.Drawing.cs" />
     <Compile Include="Theme\WaWallpaper.cs" />
     <Compile Include="UI\Conversation.cs" />
+    <Compile Include="UI\IncomingCallDialog.cs" />
     <Compile Include="UI\LoginScreen.cs" />
     <Compile Include="UI\MainForm.cs" />
     <Compile Include="UI\MainForm.Chat.cs" />

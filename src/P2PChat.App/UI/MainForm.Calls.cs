@@ -17,9 +17,15 @@ namespace P2PChat.App.UI
         private string _callId;
         private string _callPeerName;
         private DateTime? _callConnectedAt;
+        private DateTime _audioCallStartedAtUtc;
         private bool _callIncoming;
         private bool _callVideo;
         private int _callEnding;
+        private const int IncomingCallTimeoutSeconds = 30;
+        private const int OutgoingCallTimeoutSeconds = 35;
+        private IncomingCallDialog _incomingPrompt;
+        private string _incomingPromptPeerId;
+        private string _incomingPromptCallId;
 
         private void StartAudioCall()
         {
@@ -54,6 +60,7 @@ namespace P2PChat.App.UI
             _callPeerName = c.PeerName;
             _callId = Guid.NewGuid().ToString("N");
             _callConnectedAt = null;
+            _audioCallStartedAtUtc = DateTime.UtcNow;
             _callIncoming = false;
             _callVideo = video;
             WaSounds.PlayCallRingtone(false);
@@ -78,7 +85,8 @@ namespace P2PChat.App.UI
             if (_closing || signal == null) return;
             if (signal.Action == "offer")
             {
-                if (_audioCall != null || Interlocked.CompareExchange(ref _callEnding, 0, 0) != 0)
+                if (_audioCall != null || _incomingPrompt != null ||
+                    Interlocked.CompareExchange(ref _callEnding, 0, 0) != 0)
                 {
                     AddCallHistory(peerId, (FindPeer(peerId) ?? new PeerInfo()).Pseudo, "Occupé", true, 0);
                     await _net.SendCallSignalAsync(peerId, new CallSignal
@@ -87,15 +95,36 @@ namespace P2PChat.App.UI
                 }
                 PeerInfo peer = FindPeer(peerId);
                 string name = peer == null ? "Contact" : peer.Pseudo;
-                string callType = signal.Video ? "vidéo" : "audio";
                 WaSounds.PlayCallRingtone(true);
                 DialogResult result;
+                IncomingCallDialog prompt = new IncomingCallDialog(name, signal.Video,
+                    IncomingCallTimeoutSeconds);
+                _incomingPrompt = prompt;
+                _incomingPromptPeerId = peerId;
+                _incomingPromptCallId = signal.CallId;
                 try
                 {
-                    result = MessageBox.Show(this, name + " vous appelle en " + callType + ".\n\nVoulez-vous répondre ?",
-                        "Appel " + callType + " entrant", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    using (prompt) result = prompt.ShowDialog(this);
                 }
-                finally { WaSounds.StopCallRingtone(); }
+                finally
+                {
+                    WaSounds.StopCallRingtone();
+                    _incomingPrompt = null;
+                    _incomingPromptPeerId = null;
+                    _incomingPromptCallId = null;
+                }
+                if (result == DialogResult.Abort)
+                {
+                    AddCallHistory(peerId, name, "Manqué", true, 0);
+                    return; // l'appelant a raccroché avant la réponse
+                }
+                if (result == DialogResult.Retry)
+                {
+                    AddCallHistory(peerId, name, "Manqué", true, 0);
+                    await _net.SendCallSignalAsync(peerId, new CallSignal
+                    { CallId = signal.CallId, Action = "timeout" });
+                    return;
+                }
                 if (result != DialogResult.Yes)
                 {
                     AddCallHistory(peerId, name, "Refusé", true, 0);
@@ -123,6 +152,13 @@ namespace P2PChat.App.UI
                 return;
             }
 
+            if (_incomingPrompt != null && peerId == _incomingPromptPeerId &&
+                signal.CallId == _incomingPromptCallId && signal.Action == "hangup")
+            {
+                _incomingPrompt.DismissByCaller();
+                return;
+            }
+
             if (_audioCall == null || peerId != _callPeerId || signal.CallId != _callId) return;
             if (signal.Action == "answer")
             {
@@ -131,6 +167,7 @@ namespace P2PChat.App.UI
                 catch (Exception ex) { EndAudioCall(false, "La connexion a échoué : " + ex.Message); }
             }
             else if (signal.Action == "reject") EndAudioCall(false, "L’appel a été refusé.", "Refusé");
+            else if (signal.Action == "timeout") EndAudioCall(false, "Votre contact n’a pas répondu.", "Sans réponse");
             else if (signal.Action == "hangup") EndAudioCall(false, null);
         }
 
@@ -205,6 +242,13 @@ namespace P2PChat.App.UI
         }
 
         private void OnHangupRequested() { EndAudioCall(true, null); }
+
+        private void CheckOutgoingCallTimeout()
+        {
+            if (_audioCall == null || _callIncoming || _callConnectedAt.HasValue) return;
+            if ((DateTime.UtcNow - _audioCallStartedAtUtc).TotalSeconds >= OutgoingCallTimeoutSeconds)
+                EndAudioCall(true, "Votre contact n’a pas répondu.", "Sans réponse");
+        }
         private void OnCallDialogClosed(object sender, FormClosedEventArgs e)
         {
             if (_audioCall != null) EndAudioCall(true, null);
@@ -245,6 +289,7 @@ namespace P2PChat.App.UI
             _callId = null;
             _callPeerName = null;
             _callConnectedAt = null;
+            _audioCallStartedAtUtc = DateTime.MinValue;
             _callVideo = false;
             if (call != null)
             {

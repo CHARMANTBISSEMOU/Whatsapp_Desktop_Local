@@ -31,7 +31,7 @@ namespace P2PChat.App.UI
         {
             if (_closing || IsDisposed) return;
             LoadConversationsFromPeers();
-            RetryPendingTextMessages();
+            RetryPendingMessages(null, true);
             RetryStatusViewedReceipts();
             RebuildOrder();
             Invalidate(SidebarRect());

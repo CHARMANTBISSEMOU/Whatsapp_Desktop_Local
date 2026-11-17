@@ -2,6 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
+using P2PChat.App.Profile;
+using P2PChat.Core.Crypto;
+using P2PChat.Core.Json;
 using System.Windows.Forms;
 using P2PChat.App.Theme;
 
@@ -23,6 +27,68 @@ namespace P2PChat.App.UI
         private string _callPagePeerId;
         private string _hoverCallPeerId;
         private bool _hoverCallButton;
+
+        private static string CallHistoryPath
+        {
+            get { return Path.Combine(ProfileStore.AppDataDir, "calls.json"); }
+        }
+
+        private void LoadCallHistory()
+        {
+            try
+            {
+                string path = CallHistoryPath;
+                if (!File.Exists(path)) return;
+                string raw = File.ReadAllText(path);
+                if (raw.StartsWith(LocalCrypto.Magic, StringComparison.Ordinal)) raw = LocalCrypto.DecryptString(raw);
+                List<object> rows = MiniJson.Deserialize(raw) as List<object>;
+                if (rows == null) return;
+                for (int i = 0; i < rows.Count && _callHistory.Count < 50; i++)
+                {
+                    Dictionary<string, object> row = rows[i] as Dictionary<string, object>;
+                    if (row == null) continue;
+                    string peerId = MiniJson.AsString(row, "peer");
+                    if (string.IsNullOrEmpty(peerId)) continue;
+                    long at = MiniJson.AsLong(row, "at");
+                    _callHistory.Add(new CallHistoryItem
+                    {
+                        PeerId = peerId,
+                        PeerName = MiniJson.AsString(row, "name", "Contact"),
+                        Result = MiniJson.AsString(row, "result", "Terminé"),
+                        Incoming = MiniJson.AsBool(row, "incoming"),
+                        AtUtc = at > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(at).UtcDateTime : DateTime.UtcNow,
+                        DurationSeconds = (int)Math.Max(0, MiniJson.AsLong(row, "duration"))
+                    });
+                }
+            }
+            catch { _callHistory.Clear(); }
+        }
+
+        private void SaveCallHistory()
+        {
+            try
+            {
+                List<object> rows = new List<object>();
+                for (int i = 0; i < _callHistory.Count && i < 50; i++)
+                {
+                    CallHistoryItem call = _callHistory[i];
+                    rows.Add(new Dictionary<string, object>
+                    {
+                        { "peer", call.PeerId }, { "name", call.PeerName },
+                        { "result", call.Result }, { "incoming", call.Incoming },
+                        { "at", new DateTimeOffset(call.AtUtc).ToUnixTimeMilliseconds() },
+                        { "duration", call.DurationSeconds }
+                    });
+                }
+                string path = CallHistoryPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                string temp = path + ".tmp";
+                File.WriteAllText(temp, LocalCrypto.EncryptString(MiniJson.Serialize(rows)));
+                if (File.Exists(path)) File.Replace(temp, path, null);
+                else File.Move(temp, path);
+            }
+            catch { }
+        }
 
         private Rectangle CallsListRect()
         {
@@ -320,6 +386,7 @@ namespace P2PChat.App.UI
                 DurationSeconds = durationSeconds
             });
             if (_callHistory.Count > 50) _callHistory.RemoveRange(50, _callHistory.Count - 50);
+            SaveCallHistory();
             if (_activeNav == 1) Invalidate();
         }
     }

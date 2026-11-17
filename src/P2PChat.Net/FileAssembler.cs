@@ -48,14 +48,20 @@ namespace P2PChat.Net
             try { Directory.CreateDirectory(_dir); } catch (Exception) { }
         }
 
-        /// <summary>Démarre un transfert entrant. False si id invalide/doublon/taille > 100 Mo.</summary>
+        /// <summary>Démarre ou reprend proprement un transfert entrant.</summary>
         public bool Begin(string id, string fileName, long size)
         {
             if (string.IsNullOrEmpty(id) || size < 0 || size > MaxFileBytes) return false;
             lock (_sync)
             {
                 if (_disposed) return false;
-                if (_items.ContainsKey(id)) return false;
+                Transfer previous;
+                if (_items.TryGetValue(id, out previous))
+                {
+                    // Un envoi interrompu peut être repris avec le même identifiant.
+                    _items.Remove(id);
+                    previous.Buffer.Dispose();
+                }
                 Transfer t = new Transfer();
                 t.FileName = fileName == null ? "" : fileName;
                 t.Size = size;
@@ -102,9 +108,10 @@ namespace P2PChat.Net
                 Transfer t;
                 if (!_items.TryGetValue(id, out t)) return null;
                 _items.Remove(id);
-                if (t.Size > 0 && t.Buffer.Length != t.Size) return null; // incomplet → refusé
-                if (t.Buffer.Length > MaxFileBytes) return null;
+                if (t.Size > 0 && t.Buffer.Length != t.Size) { t.Buffer.Dispose(); return null; }
+                if (t.Buffer.Length > MaxFileBytes) { t.Buffer.Dispose(); return null; }
                 data = t.Buffer.ToArray();
+                t.Buffer.Dispose();
                 fileName = t.FileName;
             }
             return WriteToDisk(id, tsUtcMs, senderId, fileName, data);
@@ -122,6 +129,7 @@ namespace P2PChat.Net
                 if (safeId.Length == 0) safeId = "transfert";
 
                 string path = Path.Combine(_dir, safeSender + "_" + safeId + "-" + safeName);
+                if (File.Exists(path)) return path; // réception répétée du même message : résultat idempotent
                 int n = 2;
                 while (File.Exists(path) && n < 64)
                 {
@@ -159,7 +167,11 @@ namespace P2PChat.Net
                 {
                     if (now - kv.Value.StartedUtc > StaleAfter) drop.Add(kv.Key);
                 }
-                for (int i = 0; i < drop.Count; i++) _items.Remove(drop[i]);
+                for (int i = 0; i < drop.Count; i++)
+                {
+                    _items[drop[i]].Buffer.Dispose();
+                    _items.Remove(drop[i]);
+                }
             }
         }
 
@@ -168,6 +180,7 @@ namespace P2PChat.Net
             lock (_sync)
             {
                 _disposed = true;
+                foreach (Transfer transfer in _items.Values) transfer.Buffer.Dispose();
                 _items.Clear();
             }
         }

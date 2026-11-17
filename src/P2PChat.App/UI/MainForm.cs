@@ -39,7 +39,7 @@ namespace P2PChat.App.UI
         // ---------------------------------------------------------------- données
         private readonly Dictionary<string, Conversation> _convs =
             new Dictionary<string, Conversation>();
-        private readonly HashSet<string> _textSendInFlight = new HashSet<string>();
+        private readonly HashSet<string> _messageSendInFlight = new HashSet<string>();
         private readonly HashSet<string> _selectedMessageIds = new HashSet<string>();
         private bool _selectMessagesMode;
         private readonly List<string> _order = new List<string>();
@@ -133,6 +133,7 @@ namespace P2PChat.App.UI
 
             _player.PlaybackDone += OnPlaybackDone;
 
+            LoadCallHistory();
             LoadConversationsFromPeers();
             LoadGroups();
             RebuildOrder();
@@ -227,6 +228,8 @@ namespace P2PChat.App.UI
         private void OnUiTick(object sender, EventArgs e)
         {
             bool repaint = false;
+            RetryPendingMessages();
+            CheckOutgoingCallTimeout();
 
             if (_activeNav == 2 && _statusViewUntilUtc != DateTime.MinValue)
             {
@@ -303,7 +306,7 @@ namespace P2PChat.App.UI
             _input.SelectionStart = _input.Text.Length;
 
             LoadMessages(c);
-            RetryPendingTextMessages(peerId);
+            RetryPendingMessages(peerId);
             MarkConversationRead(c);
             RebuildOrder();
             RelayoutControls();

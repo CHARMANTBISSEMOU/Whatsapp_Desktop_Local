@@ -345,7 +345,7 @@ namespace P2PChat.App.UI
                 {
                     ChatMessage forwarded = ChatMessage.NewText(_self.Id, target.PeerId, true, msg.Text ?? "");
                     AppendLocalMessage(target, forwarded);
-                    SendTextWithFeedback(target, forwarded);
+                    SendPendingMessage(target, forwarded);
                     _toasts.Show("Message transféré.");
                     return;
                 }
@@ -361,27 +361,7 @@ namespace P2PChat.App.UI
                     FileSize = msg.FileSize, Waveform = msg.Waveform, VoiceDurationSec = msg.VoiceDurationSec
                 };
                 AppendLocalMessage(target, transfer);
-                if (IsGroup(target.PeerId)) SendGroupTransfer(target, transfer, transfer.Kind == MessageKind.Voice);
-                else SendForwardedTransfer(target, transfer);
-            }
-        }
-
-        private async void SendForwardedTransfer(Conversation target, ChatMessage message)
-        {
-            bool sent = false;
-            try
-            {
-                sent = message.Kind == MessageKind.Voice
-                    ? await _net.SendVoiceAsync(target.PeerId, message)
-                    : await _net.SendFileAsync(target.PeerId, message);
-            }
-            catch { sent = false; }
-            if (!sent)
-            {
-                message.Status = DeliveryStatus.Failed;
-                PersistMessage(message);
-                Invalidate(StreamRect());
-                _toasts.Show("Le transfert a échoué. Vérifiez que le contact est connecté.");
+                SendPendingMessage(target, transfer);
             }
         }
 
