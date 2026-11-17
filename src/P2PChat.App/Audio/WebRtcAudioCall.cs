@@ -36,6 +36,8 @@ namespace P2PChat.App.Audio
         private VideoCaptureDevice _camera;
         private RTCDataChannel _videoChannel;
         private long _lastVideoFrameTicks;
+        private int _receivedVideoFrame;
+        private int _videoSendErrorReported;
         private int _disposeStarted;
         private volatile bool _disposed;
 
@@ -102,7 +104,7 @@ namespace P2PChat.App.Audio
         {
             if (!_videoEnabled || _videoChannel != null) return;
             _videoChannel = await _peer.createDataChannel("p2pchat-video", new RTCDataChannelInit
-            { ordered = false, maxRetransmits = 0 });
+            { ordered = true });
             ConfigureVideoChannel(_videoChannel);
         }
 
@@ -115,6 +117,7 @@ namespace P2PChat.App.Audio
 
         private void ConfigureVideoChannel(RTCDataChannel channel)
         {
+            RaiseVideoStatus("Canal vidéo en négociation…");
             channel.onopen += StartCamera;
             channel.onmessage += OnVideoMessage;
             channel.onerror += OnVideoError;
@@ -130,6 +133,7 @@ namespace P2PChat.App.Audio
         private void StartCamera()
         {
             if (!_videoEnabled || _disposed || _camera != null) return;
+            RaiseVideoStatus("Canal vidéo connecté, démarrage de la caméra…");
             try
             {
                 FilterInfoCollection cameras = new FilterInfoCollection(FilterCategory.VideoInputDevice);
@@ -141,7 +145,7 @@ namespace P2PChat.App.Audio
                 camera.NewFrame += OnCameraFrame;
                 _camera = camera;
                 camera.Start();
-                RaiseVideoStatus("Caméra active");
+                RaiseVideoStatus("Caméra active — envoi vidéo en cours");
             }
             catch (Exception ex) { RaiseVideoStatus("Caméra indisponible : " + ex.Message); }
         }
@@ -161,14 +165,26 @@ namespace P2PChat.App.Audio
                     ImageCodecInfo jpeg = ImageCodecInfo.GetImageEncoders().First(c => c.MimeType == "image/jpeg");
                     using (EncoderParameters parameters = new EncoderParameters(1))
                     {
-                        parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 42L);
+                        parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 30L);
                         frame.Save(stream, jpeg, parameters);
                     }
                     byte[] bytes = stream.ToArray();
-                    if (bytes.Length <= 60000) _videoChannel.send(bytes, 0, bytes.Length);
+                    if (bytes.Length > 60000)
+                    {
+                        if (Interlocked.Exchange(ref _videoSendErrorReported, 1) == 0)
+                            RaiseVideoStatus("Image trop volumineuse pour le flux vidéo.");
+                        return;
+                    }
+                    // Évite d'empiler les images si le réseau est plus lent que la caméra.
+                    if (_videoChannel.bufferedAmount < 180000)
+                        _videoChannel.send(bytes, 0, bytes.Length);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                if (Interlocked.Exchange(ref _videoSendErrorReported, 1) == 0)
+                    RaiseVideoStatus("Envoi vidéo impossible : " + ex.Message);
+            }
         }
 
         private void OnVideoMessage(RTCDataChannel channel, DataChannelPayloadProtocols protocol, byte[] payload)
@@ -182,9 +198,15 @@ namespace P2PChat.App.Audio
                     Bitmap copy = new Bitmap(image);
                     Action<Bitmap> handler = VideoFrameReceived;
                     if (handler != null) handler(copy); else copy.Dispose();
+                    if (Interlocked.Exchange(ref _receivedVideoFrame, 1) == 0)
+                        RaiseVideoStatus("Vidéo reçue");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                if (Interlocked.Exchange(ref _receivedVideoFrame, 1) == 0)
+                    RaiseVideoStatus("Image vidéo illisible : " + ex.Message);
+            }
         }
 
         private void RaiseVideoStatus(string status)
