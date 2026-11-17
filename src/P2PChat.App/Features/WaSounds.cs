@@ -14,6 +14,7 @@ namespace P2PChat.App.Features
         private static System.Media.SoundPlayer _incoming;
         private static System.Media.SoundPlayer _sent;
         private static System.Media.SoundPlayer _peer;
+        private static System.Media.SoundPlayer _callRingtone;
         private static readonly object Gate = new object();
 
         private static string CacheDir
@@ -43,6 +44,31 @@ namespace P2PChat.App.Features
         {
             if (_peer == null) _peer = Build("peer", BuildArpeggio);
             try { _peer.Play(); } catch (Exception) { }
+        }
+
+        /// <summary>Sonnerie répétée pendant la présentation ou l'attente d'un appel.</summary>
+        public static void PlayCallRingtone(bool incoming)
+        {
+            lock (Gate)
+            {
+                StopCallRingtoneLocked();
+                _callRingtone = Build(incoming ? "call-incoming" : "call-outgoing",
+                    incoming ? (Func<byte[]>)BuildIncomingRingtone : BuildOutgoingRingtone);
+                try { _callRingtone.PlayLooping(); } catch (Exception) { }
+            }
+        }
+
+        /// <summary>Arrête la sonnerie d'appel sans affecter les notifications.</summary>
+        public static void StopCallRingtone()
+        {
+            lock (Gate) StopCallRingtoneLocked();
+        }
+
+        private static void StopCallRingtoneLocked()
+        {
+            if (_callRingtone == null) return;
+            try { _callRingtone.Stop(); } catch (Exception) { }
+            _callRingtone = null;
         }
 
         private static System.Media.SoundPlayer Build(string name, Func<byte[]> synth)
@@ -156,6 +182,26 @@ namespace P2PChat.App.Features
                 new double[] { 523, 90, 0.16 },
                 new double[] { 659, 90, 0.16 },
                 new double[] { 784, 140, 0.16 },
+            });
+        }
+
+        private static byte[] BuildIncomingRingtone()
+        {
+            return Segments(44100, new double[][]
+            {
+                new double[] { 880, 230, 0.22 },
+                new double[] { 0, 100, 0 },
+                new double[] { 659, 300, 0.20 },
+                new double[] { 0, 1050, 0 },
+            });
+        }
+
+        private static byte[] BuildOutgoingRingtone()
+        {
+            return Segments(44100, new double[][]
+            {
+                new double[] { 440, 850, 0.16 },
+                new double[] { 0, 1900, 0 },
             });
         }
     }

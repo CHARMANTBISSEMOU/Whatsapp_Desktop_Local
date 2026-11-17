@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Windows.Forms;
 using P2PChat.App.Audio;
+using P2PChat.App.Features;
 using P2PChat.Core.Protocol;
 using SIPSorcery.Net;
 
@@ -55,6 +56,7 @@ namespace P2PChat.App.UI
             _callConnectedAt = null;
             _callIncoming = false;
             _callVideo = video;
+            WaSounds.PlayCallRingtone(false);
             CreateAudioCall(c.PeerName, false, video);
             try
             {
@@ -86,8 +88,14 @@ namespace P2PChat.App.UI
                 PeerInfo peer = FindPeer(peerId);
                 string name = peer == null ? "Contact" : peer.Pseudo;
                 string callType = signal.Video ? "vidéo" : "audio";
-                DialogResult result = MessageBox.Show(this, name + " vous appelle en " + callType + ".\n\nVoulez-vous répondre ?",
-                    "Appel " + callType + " entrant", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                WaSounds.PlayCallRingtone(true);
+                DialogResult result;
+                try
+                {
+                    result = MessageBox.Show(this, name + " vous appelle en " + callType + ".\n\nVoulez-vous répondre ?",
+                        "Appel " + callType + " entrant", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                }
+                finally { WaSounds.StopCallRingtone(); }
                 if (result != DialogResult.Yes)
                 {
                     AddCallHistory(peerId, name, "Refusé", true, 0);
@@ -118,6 +126,7 @@ namespace P2PChat.App.UI
             if (_audioCall == null || peerId != _callPeerId || signal.CallId != _callId) return;
             if (signal.Action == "answer")
             {
+                WaSounds.StopCallRingtone();
                 try { _audioCall.ApplyAnswer(signal.Sdp); }
                 catch (Exception ex) { EndAudioCall(false, "La connexion a échoué : " + ex.Message); }
             }
@@ -178,6 +187,7 @@ namespace P2PChat.App.UI
                 if (_callDialog == null) return;
                 if (state == RTCPeerConnectionState.connected)
                 {
+                    WaSounds.StopCallRingtone();
                     _callConnectedAt = DateTime.UtcNow;
                     _callDialog.SetCallState("Connecté");
                 }
@@ -208,6 +218,7 @@ namespace P2PChat.App.UI
                 return;
             }
             if (Interlocked.Exchange(ref _callEnding, 1) != 0) return;
+            WaSounds.StopCallRingtone();
             WebRtcAudioCall call = _audioCall;
             string peer = _callPeerId, id = _callId;
             string peerName = _callPeerName;
