@@ -7,6 +7,23 @@ namespace P2PChat.App.Theme
     /// <summary>Iconothèque WhatsApp — partie 6 : réseau, soleil, coche cerclée, clear.</summary>
     public static partial class WaIcons
     {
+        // ================================================================ EYE 👁
+        public static void Eye(Graphics g, float x, float y, float s, Color c)
+        {
+            using (Pen p = N(c, 1.6f))
+            using (SolidBrush b = new SolidBrush(c))
+            using (GraphicsPath shape = new GraphicsPath())
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                shape.AddBezier(U(x), U(y + s * .5f), U(x + s * .28f), U(y + s * .08f),
+                    U(x + s * .72f), U(y + s * .08f), U(x + s), U(y + s * .5f));
+                shape.AddBezier(U(x + s), U(y + s * .5f), U(x + s * .72f), U(y + s * .92f),
+                    U(x + s * .28f), U(y + s * .92f), U(x), U(y + s * .5f));
+                g.DrawPath(p, shape);
+                g.FillEllipse(b, U(x + s * .38f), U(y + s * .28f), U(s * .24f), U(s * .44f));
+            }
+        }
+
         // ============================================================== NETWORK 🌐
         public static void Network(Graphics g, float x, float y, float s, Color c)
         {

@@ -228,6 +228,12 @@ namespace P2PChat.App.UI
         {
             bool repaint = false;
 
+            if (_activeNav == 2 && _statusViewUntilUtc != DateTime.MinValue)
+            {
+                if (DateTime.UtcNow >= _statusViewUntilUtc) AdvanceStatusAfterTimeout();
+                repaint = true;
+            }
+
             // « en train d'écrire… » expire
             Conversation c = Selected();
             if (c != null && !c.Typing && c.TypingUntil != DateTime.MinValue)
@@ -490,7 +496,8 @@ namespace P2PChat.App.UI
             }
             else if (side.Contains(p))
             {
-                if (_activeNav == 1) CallsPageMouseMove(p);
+                if (_activeNav == 2) StatusMouseMove(p);
+                else if (_activeNav == 1) CallsPageMouseMove(p);
                 else
                 {
                     SidebarMouseMove(p);

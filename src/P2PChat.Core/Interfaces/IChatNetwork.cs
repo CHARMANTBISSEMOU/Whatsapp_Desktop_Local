@@ -67,6 +67,9 @@ namespace P2PChat.Core.Interfaces
         /// <summary>Statut/story reçu d'un pair : (expéditeur, statut).</summary>
         event Action<string, StatusPost> StatusReceived;
 
+        /// <summary>Un pair a vu un de mes statuts : (viewerPeerId, statusId).</summary>
+        event Action<string, string> StatusViewed;
+
         /// <summary>Signal d'appel audio reçu : (identifiant du pair, signal).</summary>
         event Action<string, CallSignal> CallSignalReceived;
 
@@ -105,6 +108,9 @@ namespace P2PChat.Core.Interfaces
 
         /// <summary>Envoie un statut (story) à un pair.</summary>
         Task<bool> SendStatusAsync(string peerId, StatusPost status);
+
+        /// <summary>Accuse réception de la visualisation d'un statut.</summary>
+        Task<bool> SendStatusViewedAsync(string peerId, string statusId);
 
         /// <summary>Envoie une offre, réponse ou fin d'appel au pair direct.</summary>
         Task<bool> SendCallSignalAsync(string peerId, CallSignal signal);

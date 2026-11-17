@@ -45,7 +45,7 @@ namespace P2PChat.Core.Protocol
             s.SenderId = MiniJson.AsString(d, "snd");
             s.Text = MiniJson.AsString(d, "txt");
             s.Bg = (int)MiniJson.AsLong(d, "bg");
-            s.TimestampUtc = MiniJson.AsLong(d, "ts");
+            s.TimestampUtc = ChatMessage.NormalizeTimestampUtcMs(MiniJson.AsLong(d, "ts"));
             if (string.IsNullOrEmpty(s.Id)) return null;
             return s;
         }

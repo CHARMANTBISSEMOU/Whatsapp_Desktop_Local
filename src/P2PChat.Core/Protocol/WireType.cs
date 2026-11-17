@@ -57,6 +57,9 @@ namespace P2PChat.Core.Protocol
         StatusPost = 16,
 
         /// <summary>Signalisation d'appel audio WebRTC : offre, réponse ou fin.</summary>
-        CallSignal = 17
+        CallSignal = 17,
+
+        /// <summary>Accusé de visualisation d'un statut : payload {id}.</summary>
+        StatusViewed = 18
     }
 }

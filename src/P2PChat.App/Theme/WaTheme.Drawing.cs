@@ -228,7 +228,9 @@ namespace P2PChat.App.Theme
         // ------------------------------------------------------------- formats
         private static DateTime EpochToLocal(long utcMs)
         {
-            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(utcMs).ToLocalTime();
+            long normalized = ChatMessage.NormalizeTimestampUtcMs(utcMs);
+            try { return DateTimeOffset.FromUnixTimeMilliseconds(normalized).LocalDateTime; }
+            catch { return DateTimeOffset.FromUnixTimeMilliseconds(ChatMessage.NowUtcMs()).LocalDateTime; }
         }
 
         /// <summary>HH:mm local (bulles + liste).</summary>

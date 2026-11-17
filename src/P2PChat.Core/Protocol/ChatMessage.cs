@@ -89,7 +89,15 @@ namespace P2PChat.Core.Protocol
         /// <summary>Horodatage courant en ms epoch UTC.</summary>
         public static long NowUtcMs()
         {
-            return DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        }
+
+        /// <summary>Convertit les anciens horodatages .NET ticks/ms au format Unix ms.</summary>
+        public static long NormalizeTimestampUtcMs(long timestamp)
+        {
+            const long legacyThreshold = 10000000000000L;
+            const long unixEpochMs = 62135596800000L;
+            return timestamp > legacyThreshold ? timestamp - unixEpochMs : timestamp;
         }
 
         /// <summary>Crée un message texte tout prêt.</summary>
@@ -170,7 +178,7 @@ namespace P2PChat.Core.Protocol
             m.PeerId = MiniJson.AsString(d, "peer");
             m.IsMine = MiniJson.AsBool(d, "mine");
             m.Text = MiniJson.AsString(d, "txt");
-            m.TimestampUtc = MiniJson.AsLong(d, "ts");
+            m.TimestampUtc = NormalizeTimestampUtcMs(MiniJson.AsLong(d, "ts"));
             m.ReplyToId = MiniJson.AsString(d, "rep");
             m.QuoteAuthor = MiniJson.AsString(d, "qa");
             m.QuoteText = MiniJson.AsString(d, "qt");

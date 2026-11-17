@@ -85,6 +85,8 @@ namespace P2PChat.App.UI
                 else if (i == 2) DrawStatusIcon(g, r, c);
                 else if (i == 3) DrawPeopleIcon(g, r, c);
                 else DrawArchiveIcon(g, r, c);
+                if (i == 2 && PeerStatuses().Count > 0) DrawNavActivityDot(g, r);
+                if (i == 3 && Cfg.Groups.Count > 0) DrawNavActivityDot(g, r);
                 if (i == 0 && UnreadCount() > 0)
                 {
                     int d = WaTheme.S(18);
@@ -243,39 +245,64 @@ namespace P2PChat.App.UI
 
         private static void DrawChatIcon(Graphics g, Rectangle r, Color c)
         {
-            float x = r.X + r.Width * .27f, y = r.Y + r.Height * .27f;
-            float w = r.Width * .46f, h = r.Height * .38f;
-            using (Pen p = new Pen(c, WaTheme.S(2.2f)))
+            float size = WaTheme.S(24f);
+            float x = r.X + (r.Width - size) / 2f, y = r.Y + (r.Height - size) / 2f;
+            float w = size * .86f, h = size * .64f, radius = WaTheme.S(4.5f);
+            using (Pen p = new Pen(c, WaTheme.S(2.1f)))
             using (GraphicsPath path = new GraphicsPath())
             {
-                path.AddArc(x, y, w, h, 180, 90); path.AddArc(x + w - h, y, h, h, 270, 90);
-                path.AddArc(x + w - h, y + h - h, h, h, 0, 90); path.AddLine(x + w, y + h * .7f, x + w * .62f, y + h * .7f);
-                path.AddLine(x + w * .62f, y + h * .7f, x + w * .45f, y + h); path.AddLine(x + w * .45f, y + h, x + w * .45f, y + h * .7f);
-                path.AddLine(x + w * .45f, y + h * .7f, x, y + h * .7f); path.CloseFigure();
+                p.StartCap = LineCap.Round; p.EndCap = LineCap.Round; p.LineJoin = LineJoin.Round;
+                path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
+                path.AddArc(x + w - radius * 2, y, radius * 2, radius * 2, 270, 90);
+                path.AddArc(x + w - radius * 2, y + h - radius * 2, radius * 2, radius * 2, 0, 70);
+                path.AddLine(x + w - radius * .7f, y + h, x + w * .58f, y + h);
+                path.AddLine(x + w * .58f, y + h, x + w * .39f, y + h + size * .18f);
+                path.AddLine(x + w * .39f, y + h + size * .18f, x + w * .39f, y + h);
+                path.AddLine(x + w * .39f, y + h, x + radius, y + h);
+                path.AddArc(x, y + h - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
                 g.DrawPath(p, path);
             }
         }
 
         private static void DrawStatusIcon(Graphics g, Rectangle r, Color c)
         {
-            float s = r.Width * .48f, x = r.X + (r.Width - s) / 2f, y = r.Y + (r.Height - s) / 2f;
-            using (Pen p = new Pen(c, WaTheme.S(2)))
+            float size = WaTheme.S(25f), x = r.X + (r.Width - size) / 2f, y = r.Y + (r.Height - size) / 2f;
+            using (Pen p = new Pen(c, WaTheme.S(2.1f)))
             {
-                g.DrawEllipse(p, x, y, s, s);
-                g.DrawArc(p, x - WaTheme.S(4), y - WaTheme.S(4), s + WaTheme.S(8), s + WaTheme.S(8), 205, 280);
-                g.DrawEllipse(p, x + s * .35f, y + s * .35f, s * .3f, s * .3f);
+                p.StartCap = LineCap.Round; p.EndCap = LineCap.Round;
+                g.DrawArc(p, x + size * .14f, y + size * .14f, size * .72f, size * .72f, 35, 286);
+                g.DrawArc(p, x + size * .28f, y + size * .28f, size * .44f, size * .44f, 205, 292);
             }
+            using (SolidBrush dot = new SolidBrush(c))
+                g.FillEllipse(dot, x + size * .71f, y + size * .02f, size * .22f, size * .22f);
         }
 
         private static void DrawPeopleIcon(Graphics g, Rectangle r, Color c)
         {
-            float x = r.X + r.Width * .5f, y = r.Y + r.Height * .35f;
-            using (Pen p = new Pen(c, WaTheme.S(2.2f)))
+            float cx = r.X + r.Width * .5f, top = r.Y + WaTheme.S(9f);
+            using (SolidBrush b = new SolidBrush(c))
+            using (Pen p = new Pen(c, WaTheme.S(2f)))
             {
-                g.DrawEllipse(p, x - WaTheme.S(5), y - WaTheme.S(8), WaTheme.S(10), WaTheme.S(10));
-                g.DrawArc(p, x - WaTheme.S(11), y + WaTheme.S(1), WaTheme.S(22), WaTheme.S(17), 190, 160);
-                g.DrawArc(p, x - WaTheme.S(18), y + WaTheme.S(4), WaTheme.S(14), WaTheme.S(12), 200, 140);
-                g.DrawArc(p, x + WaTheme.S(4), y + WaTheme.S(4), WaTheme.S(14), WaTheme.S(12), 200, 140);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.FillEllipse(b, cx - WaTheme.S(4), top, WaTheme.S(8), WaTheme.S(8));
+                g.FillEllipse(b, cx - WaTheme.S(12), top + WaTheme.S(3), WaTheme.S(6), WaTheme.S(6));
+                g.FillEllipse(b, cx + WaTheme.S(6), top + WaTheme.S(3), WaTheme.S(6), WaTheme.S(6));
+                g.DrawArc(p, cx - WaTheme.S(8), top + WaTheme.S(8), WaTheme.S(16), WaTheme.S(12), 200, 140);
+                g.DrawArc(p, cx - WaTheme.S(17), top + WaTheme.S(10), WaTheme.S(13), WaTheme.S(10), 205, 125);
+                g.DrawArc(p, cx + WaTheme.S(4), top + WaTheme.S(10), WaTheme.S(13), WaTheme.S(10), 210, 125);
+            }
+        }
+
+        private static void DrawNavActivityDot(Graphics g, Rectangle r)
+        {
+            int d = WaTheme.S(9);
+            int x = r.Right - WaTheme.S(7), y = r.Y + WaTheme.S(5);
+            using (SolidBrush edge = new SolidBrush(WaTheme.Dark ? Color.FromArgb(17, 27, 33) : Color.FromArgb(247, 247, 247)))
+            using (SolidBrush dot = new SolidBrush(WaTheme.BrandGreen))
+            {
+                g.FillEllipse(edge, x - WaTheme.S(2), y - WaTheme.S(2), d + WaTheme.S(4), d + WaTheme.S(4));
+                g.FillEllipse(dot, x, y, d, d);
             }
         }
 

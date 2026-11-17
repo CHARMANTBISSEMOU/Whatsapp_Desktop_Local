@@ -129,6 +129,7 @@ namespace P2PChat.Net
         public event Action<string, string> MessageDeletedForAll;
         public event Action<string, string, string, List<string>> GroupMetaReceived;
         public event Action<string, StatusPost> StatusReceived;
+        public event Action<string, string> StatusViewed;
         public event Action<string, CallSignal> CallSignalReceived;
 
         /// <summary>Démarre la découverte UDP + le serveur TCP + le périphérique de nettoyage.</summary>
@@ -680,6 +681,9 @@ namespace P2PChat.Net
                     case WireType.StatusPost:
                         HandleStatus(peerId, env);
                         break;
+                    case WireType.StatusViewed:
+                        HandleStatusViewed(peerId, env);
+                        break;
                     case WireType.CallSignal:
                         HandleCallSignal(peerId, env);
                         break;
@@ -956,6 +960,14 @@ namespace P2PChat.Net
                 Action<string, StatusPost> h = StatusReceived;
                 if (h != null) h(senderId, snapshot);
             });
+        }
+
+        private void HandleStatusViewed(string viewerId, WireEnvelope env)
+        {
+            string statusId = MiniJson.AsString(env.Payload(), "id");
+            if (string.IsNullOrEmpty(statusId)) return;
+            Action<string, string> handler = StatusViewed;
+            if (handler != null) PostUi(delegate { if (!_disposed) handler(viewerId, statusId); });
         }
 
         private void HandleReceipt(string peerId, WireEnvelope env)
@@ -1336,6 +1348,26 @@ namespace P2PChat.Net
                     MiniJson.Serialize(status.ToDict()));
                 try { return s.SendEnvelope(env); }
                 catch (Exception) { return false; }
+            });
+        }
+
+        public Task<bool> SendStatusViewedAsync(string peerId, string statusId)
+        {
+            if (_disposed || string.IsNullOrEmpty(peerId) || string.IsNullOrEmpty(statusId)) return TaskFalse;
+            PeerState state = LookupState(peerId);
+            if (state == null) return TaskFalse;
+            return Task.Run(delegate
+            {
+                PeerSession session = state.Session;
+                if (session == null || session.IsClosed || !session.IsHandshakeComplete) return false;
+                Dictionary<string, object> payload = new Dictionary<string, object>();
+                payload["id"] = statusId;
+                try
+                {
+                    return session.SendEnvelope(WireEnvelope.Create(WireType.StatusViewed, _self.Id,
+                        MiniJson.Serialize(payload)));
+                }
+                catch { return false; }
             });
         }
 

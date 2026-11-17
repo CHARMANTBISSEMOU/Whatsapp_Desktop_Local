@@ -54,14 +54,20 @@ namespace P2PChat.App.Theme
             using (Pen p = N(c, 1.6f))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                p.LineJoin = LineJoin.Round;
                 using (GraphicsPath path = new GraphicsPath())
                 {
-                    path.AddArc(U(x + s * 0.10f), U(y + s * 0.55f), U(s * 0.30f), U(s * 0.30f), 190, 110);
-                    path.AddLine(U(x + s * 0.18f), U(y + s * 0.62f), U(x + s * 0.30f), U(y + s * 0.80f));
-                    path.AddArc(U(x + s * 0.20f), U(y + s * 0.66f), U(s * 0.38f), U(s * 0.38f), 290, 170);
-                    path.AddLine(U(x + s * 0.90f), U(y + s * 0.14f), U(x + s * 0.70f), U(y + s * 0.07f));
-                    path.AddArc(U(x + s * 0.50f), U(y + s * 0.02f), U(s * 0.36f), U(s * 0.30f), 15, 165);
+                    path.AddBezier(U(x + s * .22f), U(y + s * .13f), U(x + s * .16f), U(y + s * .08f),
+                        U(x + s * .09f), U(y + s * .14f), U(x + s * .10f), U(y + s * .25f));
+                    path.AddBezier(U(x + s * .10f), U(y + s * .25f), U(x + s * .20f), U(y + s * .57f),
+                        U(x + s * .43f), U(y + s * .80f), U(x + s * .75f), U(y + s * .90f));
+                    path.AddBezier(U(x + s * .75f), U(y + s * .90f), U(x + s * .86f), U(y + s * .91f),
+                        U(x + s * .92f), U(y + s * .84f), U(x + s * .87f), U(y + s * .78f));
                     g.DrawPath(p, path);
+                    g.DrawLine(p, U(x + s * .22f), U(y + s * .13f), U(x + s * .37f), U(y + s * .30f));
+                    g.DrawLine(p, U(x + s * .75f), U(y + s * .90f), U(x + s * .90f), U(y + s * .76f));
                 }
             }
         }

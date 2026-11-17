@@ -23,6 +23,7 @@ namespace P2PChat.App.UI
             _net.MessageDeletedForAll += OnMessageDeletedForAll;
             _net.GroupMetaReceived += OnGroupMetaReceived;
             _net.StatusReceived += OnStatusReceived;
+            _net.StatusViewed += OnStatusViewed;
             _net.CallSignalReceived += OnCallSignalReceived;
         }
 
@@ -31,6 +32,7 @@ namespace P2PChat.App.UI
             if (_closing || IsDisposed) return;
             LoadConversationsFromPeers();
             RetryPendingTextMessages();
+            RetryStatusViewedReceipts();
             RebuildOrder();
             Invalidate(SidebarRect());
             if (_activeNav == 1) Invalidate(ChatRect());

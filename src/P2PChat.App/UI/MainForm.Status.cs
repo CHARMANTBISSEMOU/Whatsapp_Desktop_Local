@@ -17,6 +17,7 @@ namespace P2PChat.App.UI
     public sealed partial class MainForm
     {
         private string _selectedStatusId;
+        private DateTime _statusViewUntilUtc = DateTime.MinValue;
         private int _hoverStatusRow = -2; // -2 aucun, -1 = mon statut, >= 0 = ligne pair
 
         private static readonly int[] StatusPalette = new int[]
@@ -30,7 +31,9 @@ namespace P2PChat.App.UI
         private static bool StatusFresh(StatusItem it)
         {
             if (it == null) return false;
-            long cutoff = DateTime.UtcNow.AddHours(-24).Ticks / TimeSpan.TicksPerMillisecond;
+            long timestamp = ChatMessage.NormalizeTimestampUtcMs(it.Ts);
+            if (timestamp != it.Ts) it.Ts = timestamp;
+            long cutoff = DateTimeOffset.UtcNow.AddHours(-24).ToUnixTimeMilliseconds();
             return it.Ts >= cutoff;
         }
 
@@ -71,6 +74,19 @@ namespace P2PChat.App.UI
         private void PurgeStaleStatuses()
         {
             Cfg.Statuses.RemoveAll(delegate(StatusItem x) { return !StatusFresh(x); });
+            Cfg.ViewedStatusIds.RemoveAll(delegate(string id)
+            {
+                return !Cfg.Statuses.Exists(delegate(StatusItem status) { return status.Id == id; });
+            });
+        }
+
+        private void RetryStatusViewedReceipts()
+        {
+            foreach (StatusItem status in Cfg.Statuses)
+            {
+                if (status.Mine || !Cfg.ViewedStatusIds.Contains(status.Id) || !IsPeerOnline(status.SenderId)) continue;
+                _net.SendStatusViewedAsync(status.SenderId, status.Id);
+            }
         }
 
         // ------------------------------------------------------------ géométrie
@@ -110,6 +126,12 @@ namespace P2PChat.App.UI
         // ------------------------------------------------------------ souris
         private void StatusMouseMove(Point p)
         {
+            StatusItem selected = SelectedStatus();
+            if (selected != null && selected.Mine && StatusViewsButtonRect(StatusCardRect()).Contains(p))
+            {
+                Cursor = Cursors.Hand;
+                return;
+            }
             if (StatusNewButtonRect().Contains(p))
             {
                 Cursor = Cursors.Hand;
@@ -127,6 +149,12 @@ namespace P2PChat.App.UI
 
         private void StatusMouseDown(Point p)
         {
+            StatusItem selected = SelectedStatus();
+            if (selected != null && selected.Mine && StatusViewsButtonRect(StatusCardRect()).Contains(p))
+            {
+                ShowStatusViewers(selected);
+                return;
+            }
             if (StatusNewButtonRect().Contains(p)) { CreateMyStatus(); return; }
             int hit = StatusHitTest(p);
             if (hit == -1)
@@ -135,8 +163,7 @@ namespace P2PChat.App.UI
                 if (mine.Count == 0) CreateMyStatus();
                 else
                 {
-                    _selectedStatusId = mine[0].Id;
-                    Invalidate();
+                    OpenStatus(mine[0]);
                 }
                 return;
             }
@@ -145,9 +172,85 @@ namespace P2PChat.App.UI
                 List<StatusItem> peers = PeerStatuses();
                 if (hit < peers.Count)
                 {
-                    _selectedStatusId = peers[hit].Id;
-                    Invalidate();
+                    OpenStatus(peers[hit]);
                 }
+            }
+        }
+
+        private Rectangle StatusCardRect()
+        {
+            Rectangle main = ChatRect();
+            return new Rectangle(main.X + WaTheme.S(24), main.Y + WaTheme.S(24),
+                main.Width - WaTheme.S(48), main.Height - WaTheme.S(48));
+        }
+
+        private void OpenStatus(StatusItem status)
+        {
+            if (status == null) return;
+            _selectedStatusId = status.Id;
+            _statusViewUntilUtc = DateTime.UtcNow.AddSeconds(15);
+            if (!status.Mine && !Cfg.ViewedStatusIds.Contains(status.Id))
+            {
+                Cfg.ViewedStatusIds.Add(status.Id);
+                Cfg.Save();
+                _net.SendStatusViewedAsync(status.SenderId, status.Id);
+            }
+            Invalidate(ChatRect());
+        }
+
+        private void AdvanceStatusAfterTimeout()
+        {
+            List<StatusItem> all = new List<StatusItem>();
+            all.AddRange(MyStatuses());
+            all.AddRange(PeerStatuses());
+            all.Sort(delegate(StatusItem a, StatusItem b) { return b.Ts.CompareTo(a.Ts); });
+            int current = all.FindIndex(delegate(StatusItem item) { return item.Id == _selectedStatusId; });
+            if (current >= 0 && current + 1 < all.Count) OpenStatus(all[current + 1]);
+            else
+            {
+                _selectedStatusId = null;
+                _statusViewUntilUtc = DateTime.MinValue;
+                Invalidate(ChatRect());
+            }
+        }
+
+        private Rectangle StatusViewsButtonRect(Rectangle card)
+        {
+            int w = WaTheme.S(110), h = WaTheme.S(28);
+            return new Rectangle(card.X + WaTheme.S(12), card.Bottom - h - WaTheme.S(6), w, h);
+        }
+
+        private void ShowStatusViewers(StatusItem status)
+        {
+            if (status == null || !status.Mine) return;
+            List<string> names = new List<string>();
+            foreach (string id in status.ViewerIds)
+            {
+                PeerInfo peer = FindPeer(id);
+                ContactLocal contact = Cfg.Contact(id);
+                string name = peer != null && !string.IsNullOrEmpty(peer.Pseudo) ? peer.Pseudo
+                    : !string.IsNullOrEmpty(contact.Alias) ? contact.Alias
+                    : !string.IsNullOrEmpty(contact.LastKnownName) ? contact.LastKnownName : id;
+                if (!names.Contains(name)) names.Add(name);
+            }
+            string content = names.Count == 0 ? "Personne n’a encore vu ce statut." : string.Join(Environment.NewLine, names.ToArray());
+            MessageBox.Show(this, content, "Vues du statut (" + status.ViewerIds.Count + ")",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void OnStatusViewed(string viewerId, string statusId)
+        {
+            if (string.IsNullOrEmpty(viewerId) || string.IsNullOrEmpty(statusId)) return;
+            foreach (StatusItem status in Cfg.Statuses)
+            {
+                if (!status.Mine || status.Id != statusId) continue;
+                if (!status.ViewerIds.Contains(viewerId))
+                {
+                    status.ViewerIds.Add(viewerId);
+                    Cfg.Save();
+                    Invalidate(ChatRect());
+                }
+                return;
             }
         }
 
@@ -285,6 +388,25 @@ namespace P2PChat.App.UI
                 g.DrawString((sel.Mine ? "Mon statut" : sel.SenderName) + " · " + WaTheme.FormatListTime(sel.Ts),
                     f, tb, card.X + WaTheme.S(56), card.Y + WaTheme.S(15));
 
+            int segmentCount = Math.Max(1, sel.Mine ? MyStatuses().Count : PeerStatuses().Count);
+            int segmentGap = WaTheme.S(4);
+            int segmentW = Math.Max(WaTheme.S(8), (card.Width - WaTheme.S(24) - (segmentCount - 1) * segmentGap) / segmentCount);
+            float progress = Math.Max(0f, Math.Min(1f, 1f - (float)(_statusViewUntilUtc - DateTime.UtcNow).TotalSeconds / 15f));
+            int segmentIndex = 0;
+            List<StatusItem> sameCollection = sel.Mine ? MyStatuses() : PeerStatuses();
+            for (int i = 0; i < sameCollection.Count; i++)
+                if (sameCollection[i].Id == sel.Id) { segmentIndex = i; break; }
+            int sx = card.X + WaTheme.S(12), sy = card.Y + WaTheme.S(4);
+            for (int i = 0; i < segmentCount; i++)
+            {
+                Rectangle track = new Rectangle(sx + i * (segmentW + segmentGap), sy, segmentW, WaTheme.S(2));
+                using (SolidBrush trackBrush = new SolidBrush(Color.FromArgb(95, 255, 255, 255))) g.FillRectangle(trackBrush, track);
+                float fill = i < segmentIndex ? 1f : i == segmentIndex ? progress : 0f;
+                if (fill > 0)
+                    using (SolidBrush progressBrush = new SolidBrush(Color.White))
+                        g.FillRectangle(progressBrush, track.X, track.Y, Math.Max(1, (int)(track.Width * fill)), track.Height);
+            }
+
             using (Font f = WaTheme.Semi(24f + WaTheme.FontStep * 3f))
             using (SolidBrush tb = new SolidBrush(Color.White))
             using (StringFormat sf = new StringFormat())
@@ -300,7 +422,13 @@ namespace P2PChat.App.UI
                 using (Font f = WaTheme.Text(8.6f))
                 using (SolidBrush tb = new SolidBrush(Color.FromArgb(200, 255, 255, 255)))
                     g.DrawString("Publié · visible par les pairs du réseau local", f, tb,
-                        card.X + WaTheme.S(14), card.Bottom - WaTheme.S(26));
+                        card.X + WaTheme.S(142), card.Bottom - WaTheme.S(26));
+                Rectangle views = StatusViewsButtonRect(card);
+                WaIcons.Eye(g, views.X, views.Y + WaTheme.S(4), WaTheme.S(18), Color.White);
+                using (Font f = WaTheme.Semi(8.6f))
+                using (SolidBrush tb = new SolidBrush(Color.White))
+                    g.DrawString("Vues : " + sel.ViewerIds.Count, f, tb,
+                        views.X + WaTheme.S(24), views.Y + WaTheme.S(6));
             }
         }
 
@@ -415,7 +543,7 @@ namespace P2PChat.App.UI
             }
 
             _selectedStatusId = it.Id;
-            Invalidate();
+            OpenStatus(it);
             _toasts.Show("Statut publié");
         }
 

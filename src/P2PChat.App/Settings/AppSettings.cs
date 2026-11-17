@@ -5,6 +5,7 @@ using P2PChat.App.Profile;
 using P2PChat.Core.Json;
 using P2PChat.Core.Crypto;
 using P2PChat.App.Theme;
+using P2PChat.Core.Protocol;
 
 namespace P2PChat.App.Settings
 {
@@ -42,6 +43,7 @@ public sealed class ContactLocal
         public int Bg;
         public long Ts;
         public bool Mine;
+        public List<string> ViewerIds = new List<string>();
     }
 
     /// <summary>
@@ -59,6 +61,7 @@ public sealed class ContactLocal
         public bool ReadReceipts = true;
         public List<string> BlockedIds = new List<string>();
         public List<string> RecentEmojis = new List<string>();
+        public List<string> ViewedStatusIds = new List<string>();
         public readonly Dictionary<string, PeerLocal> Peers = new Dictionary<string, PeerLocal>();
         public readonly Dictionary<string, ContactLocal> Contacts = new Dictionary<string, ContactLocal>();
         public readonly Dictionary<string, GroupLocal> Groups = new Dictionary<string, GroupLocal>();
@@ -110,6 +113,7 @@ public sealed class ContactLocal
                 s.WindowMax = MiniJson.AsBool(d, "winMax");
                 LoadStringList(MiniJson.AsList(d, "blocked"), s.BlockedIds);
                 LoadStringList(MiniJson.AsList(d, "recent"), s.RecentEmojis);
+                LoadStringList(MiniJson.AsList(d, "viewedStatuses"), s.ViewedStatusIds);
                 Dictionary<string, object> peers = MiniJson.AsDict(d, "peers");
                 if (peers != null)
                 {
@@ -165,7 +169,7 @@ public sealed class ContactLocal
                 List<object> stList = MiniJson.AsList(d, "statuses");
                 if (stList != null)
                 {
-                    long cutoff = DateTime.UtcNow.AddHours(-24).Ticks / TimeSpan.TicksPerMillisecond;
+                    long cutoff = DateTimeOffset.UtcNow.AddHours(-24).ToUnixTimeMilliseconds();
                     foreach (object o in stList)
                     {
                         Dictionary<string, object> sd = o as Dictionary<string, object>;
@@ -178,6 +182,8 @@ public sealed class ContactLocal
                         it.Bg = (int)MiniJson.AsLong(sd, "bg");
                         it.Ts = MiniJson.AsLong(sd, "ts");
                         it.Mine = MiniJson.AsBool(sd, "mine", false);
+                        it.Ts = ChatMessage.NormalizeTimestampUtcMs(it.Ts);
+                        LoadStringList(MiniJson.AsList(sd, "viewers"), it.ViewerIds);
                         if (string.IsNullOrEmpty(it.Id) || it.Ts < cutoff) continue; // expiré (24 h)
                         s.Statuses.Add(it);
                     }
@@ -222,6 +228,9 @@ public sealed class ContactLocal
                 List<object> recent = new List<object>();
                 foreach (string b in RecentEmojis) recent.Add(b);
                 d["recent"] = recent;
+                List<object> viewedStatuses = new List<object>();
+                foreach (string id in ViewedStatusIds) viewedStatuses.Add(id);
+                d["viewedStatuses"] = viewedStatuses;
                 Dictionary<string, object> peers = new Dictionary<string, object>();
                 foreach (KeyValuePair<string, PeerLocal> kv in Peers)
                 {
@@ -268,6 +277,9 @@ public sealed class ContactLocal
                     sd["bg"] = (long)it.Bg;
                     sd["ts"] = it.Ts;
                     sd["mine"] = it.Mine;
+                    List<object> viewers = new List<object>();
+                    foreach (string viewerId in it.ViewerIds) viewers.Add(viewerId);
+                    sd["viewers"] = viewers;
                     statuses.Add(sd);
                 }
                 d["statuses"] = statuses;
