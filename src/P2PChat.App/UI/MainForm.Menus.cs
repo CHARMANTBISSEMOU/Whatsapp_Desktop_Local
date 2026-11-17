@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using P2PChat.App.Controls;
@@ -214,23 +216,72 @@ namespace P2PChat.App.UI
         private void ShowBubbleMenu(ChatMessage msg, Point screenPt)
         {
             if (msg == null) return;
-            WaMenu m = new WaMenu();
-            m.Add("Répondre", delegate { SetReply(msg); }, WaIcons.Reply);
-            m.Add("Copier", delegate { try { Clipboard.SetText(msg.Text ?? ""); } catch { } }, WaIcons.Copy);
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Font = WaTheme.Text(9.8f);
+            menu.BackColor = WaTheme.MenuBg;
+            menu.ForeColor = WaTheme.TextDark;
+            menu.Items.Add("Répondre", null, delegate { SetReply(msg); });
+            if (msg.Kind == MessageKind.File || msg.Kind == MessageKind.Image)
+                menu.Items.Add("Ouvrir le fichier", null, delegate { OpenMessageFile(msg); });
+            if (msg.Kind == MessageKind.Text && !string.IsNullOrEmpty(msg.Text))
+                menu.Items.Add("Copier le texte", null, delegate { CopyMessageText(msg); });
+            else if ((msg.Kind == MessageKind.File || msg.Kind == MessageKind.Image || msg.Kind == MessageKind.Voice) && !string.IsNullOrEmpty(msg.LocalPath))
+                menu.Items.Add("Copier le fichier", null, delegate { CopyMessageFile(msg); });
             if (msg.IsMine && msg.Kind == MessageKind.Text)
-                m.Add("Modifier", delegate { EditMessage(msg); }, WaIcons.Pencil);
-            m.Add("Réagir 👍", delegate { React(msg, "👍"); }, WaIcons.React);
-            m.Add("Réagir ❤️", delegate { React(msg, "❤️"); }, WaIcons.React);
-            m.AddSep();
-            m.Add("Supprimer pour moi", delegate
+                menu.Items.Add("Modifier", null, delegate { EditMessage(msg); });
+            menu.Items.Add("Réagir 👍", null, delegate { React(msg, "👍"); });
+            menu.Items.Add("Réagir ❤️", null, delegate { React(msg, "❤️"); });
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Supprimer pour moi", null, delegate
             {
                 msg.Deleted = true;
                 PersistMessage(msg);
                 Invalidate();
-            }, WaIcons.Trash);
+            });
             if (msg.IsMine)
-                m.Add("Supprimer pour tous", delegate { DeleteForAll(msg); }, WaIcons.Trash);
-            m.ShowAt(screenPt, 0);
+                menu.Items.Add("Supprimer pour tous", null, delegate { DeleteForAll(msg); });
+            menu.Closed += delegate { menu.Dispose(); };
+            menu.Show(this, PointToClient(screenPt));
+        }
+
+        private void CopyMessageText(ChatMessage msg)
+        {
+            try
+            {
+                Clipboard.SetText(msg.Text ?? "");
+                _toasts.Show("Texte copié.");
+            }
+            catch (Exception ex) { _toasts.Show("Impossible de copier : " + ex.Message); }
+        }
+
+        private void CopyMessageFile(ChatMessage msg)
+        {
+            try
+            {
+                if (msg == null || string.IsNullOrEmpty(msg.LocalPath) || !System.IO.File.Exists(msg.LocalPath))
+                    throw new System.IO.FileNotFoundException("Le fichier n’est plus disponible.");
+                StringCollection paths = new StringCollection();
+                paths.Add(msg.LocalPath);
+                Clipboard.SetFileDropList(paths);
+                _toasts.Show("Fichier copié.");
+            }
+            catch (Exception ex) { _toasts.Show("Impossible de copier : " + ex.Message); }
+        }
+
+        private void OpenMessageFile(ChatMessage msg)
+        {
+            if (msg == null || string.IsNullOrEmpty(msg.LocalPath) || !System.IO.File.Exists(msg.LocalPath))
+            {
+                MessageBox.Show(this, "Le fichier n’est pas disponible sur cet appareil.", "P2PChat",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            try { Process.Start(new ProcessStartInfo(msg.LocalPath) { UseShellExecute = true }); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Windows n’a pas pu ouvrir ce fichier : " + ex.Message, "P2PChat",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         // ------------------------------------------------------------ actions

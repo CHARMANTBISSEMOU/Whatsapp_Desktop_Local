@@ -63,6 +63,9 @@ namespace P2PChat.App.UI
             {
                 StreamItem it = HitStreamItem(p);
                 if (it.Kind == 2 && it.Msg != null) hover = it.Msg.Id;
+                Cursor = it.Kind == 2 && it.Msg != null &&
+                    (it.Msg.Kind == MessageKind.File || it.Msg.Kind == MessageKind.Image)
+                    ? Cursors.Hand : Cursors.Default;
             }
             if (c != null && hover != c.HoverMsgId)
             {
@@ -138,10 +141,7 @@ namespace P2PChat.App.UI
             {
                 ChatMessage m = hit.Msg;
                 if (m.Kind == MessageKind.Voice) ToggleVoice(c, m);
-                else if (m.Kind == MessageKind.Image && !string.IsNullOrEmpty(m.Text))
-                {
-                    // pas d'action au clic simple
-                }
+                else if (m.Kind == MessageKind.File || m.Kind == MessageKind.Image) OpenMessageFile(m);
                 else
                 {
                     c.HoverMsgId = m.Id;

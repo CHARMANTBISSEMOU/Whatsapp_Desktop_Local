@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using P2PChat.App.Theme;
 using P2PChat.Core.Protocol;
@@ -284,8 +285,36 @@ namespace P2PChat.App.UI
             }
             _input.Text = "";
             AppendLocalMessage(c, m);
-            if (IsGroup(c.PeerId)) SendGroupMessage(c, m);
-            else _net.SendTextAsync(c.PeerId, m);
+            SendTextWithFeedback(c, m);
+        }
+
+        private async void SendTextWithFeedback(Conversation conversation, ChatMessage message)
+        {
+            bool sent = false;
+            try
+            {
+                if (IsGroup(conversation.PeerId))
+                {
+                    List<Task<bool>> sends = new List<Task<bool>>();
+                    foreach (string member in GroupMembers(conversation.PeerId))
+                    {
+                        if (member == _self.Id) continue;
+                        sends.Add(_net.SendGroupTextAsync(member, message));
+                    }
+                    bool[] results = await Task.WhenAll(sends);
+                    for (int i = 0; i < results.Length; i++) sent |= results[i];
+                }
+                else sent = await _net.SendTextAsync(conversation.PeerId, message);
+            }
+            catch { sent = false; }
+
+            if (!sent)
+            {
+                message.Status = DeliveryStatus.Failed;
+                PersistMessage(message);
+                Invalidate(StreamRect());
+                _toasts.Show("Message non envoyé. Vérifiez que le contact est connecté.");
+            }
         }
 
         private void AttachFiles()

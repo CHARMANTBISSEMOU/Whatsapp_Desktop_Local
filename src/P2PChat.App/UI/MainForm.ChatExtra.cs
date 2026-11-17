@@ -234,6 +234,9 @@ namespace P2PChat.App.UI
             using (Font f = WaTheme.Text(8.4f))
             using (SolidBrush b = new SolidBrush(ic))
                 g.DrawString(WaTheme.FormatSize(m.FileSize), f, b, tx, iy + WaTheme.S(26));
+            using (Font f = WaTheme.Text(7.4f))
+            using (SolidBrush b = new SolidBrush(WaTheme.TextGray))
+                g.DrawString("Cliquez pour ouvrir", f, b, tx, iy + WaTheme.S(38));
         }
 
         private void PaintImageBubble(Graphics g, ChatMessage m, bool mine, int x, int y, int w, int h)
