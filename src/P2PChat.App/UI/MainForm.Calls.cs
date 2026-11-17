@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using P2PChat.App.Audio;
 using P2PChat.Core.Protocol;
@@ -13,11 +12,27 @@ namespace P2PChat.App.UI
         private AudioCallDialog _callDialog;
         private string _callPeerId;
         private string _callId;
+        private string _callPeerName;
+        private DateTime? _callConnectedAt;
+        private bool _callIncoming;
 
-        private async void StartAudioCall()
+        private void StartAudioCall()
         {
             Conversation c = Selected();
             if (c == null || IsGroup(c.PeerId)) return;
+            StartAudioCall(c.PeerId);
+        }
+
+        private async void StartAudioCall(string peerId)
+        {
+            Conversation c = Conv(peerId);
+            if (c == null || IsGroup(c.PeerId)) return;
+            if (!c.Online)
+            {
+                MessageBox.Show(this, "Ce contact est hors ligne. L’appel sera possible lorsqu’il se reconnectera.",
+                    "Appel audio", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             if (_audioCall != null)
             {
                 MessageBox.Show(this, "Un appel est déjà en cours.", "P2PChat",
@@ -25,7 +40,10 @@ namespace P2PChat.App.UI
                 return;
             }
             _callPeerId = c.PeerId;
+            _callPeerName = c.PeerName;
             _callId = Guid.NewGuid().ToString("N");
+            _callConnectedAt = null;
+            _callIncoming = false;
             CreateAudioCall(c.PeerName, false);
             try
             {
@@ -44,6 +62,7 @@ namespace P2PChat.App.UI
             {
                 if (_audioCall != null)
                 {
+                    AddCallHistory(peerId, (FindPeer(peerId) ?? new PeerInfo()).Pseudo, "Occupé", true, 0);
                     await _net.SendCallSignalAsync(peerId, new CallSignal
                     { CallId = signal.CallId, Action = "reject" });
                     return;
@@ -54,13 +73,17 @@ namespace P2PChat.App.UI
                     "Appel audio entrant", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (result != DialogResult.Yes)
                 {
+                    AddCallHistory(peerId, name, "Refusé", true, 0);
                     await _net.SendCallSignalAsync(peerId, new CallSignal
                     { CallId = signal.CallId, Action = "reject" });
                     return;
                 }
 
                 _callPeerId = peerId;
+                _callPeerName = name;
                 _callId = signal.CallId;
+                _callConnectedAt = null;
+                _callIncoming = true;
                 CreateAudioCall(name, true);
                 try
                 {
@@ -80,8 +103,8 @@ namespace P2PChat.App.UI
                 try { _audioCall.ApplyAnswer(signal.Sdp); }
                 catch (Exception ex) { EndAudioCall(false, "La connexion a échoué : " + ex.Message); }
             }
-            else if (signal.Action == "reject") EndAudioCall(false, "L’appel a été refusé.");
-            else if (signal.Action == "hangup") EndAudioCall(false, "Appel terminé.");
+            else if (signal.Action == "reject") EndAudioCall(false, "L’appel a été refusé.", "Refusé");
+            else if (signal.Action == "hangup") EndAudioCall(false, null);
         }
 
         private void CreateAudioCall(string peerName, bool incoming)
@@ -98,14 +121,19 @@ namespace P2PChat.App.UI
         private void OnAudioCallStateChanged(RTCPeerConnectionState state)
         {
             if (IsDisposed || !IsHandleCreated) return;
-            BeginInvoke((Action)delegate
+            try { BeginInvoke((Action)delegate
             {
                 if (_callDialog == null) return;
-                if (state == RTCPeerConnectionState.connected) _callDialog.SetCallState("Connecté");
+                if (state == RTCPeerConnectionState.connected)
+                {
+                    _callConnectedAt = DateTime.UtcNow;
+                    _callDialog.SetCallState("Connecté");
+                }
                 else if (state == RTCPeerConnectionState.connecting) _callDialog.SetCallState("Connexion en cours…");
                 else if (state == RTCPeerConnectionState.failed) EndAudioCall(true, "Connexion audio impossible.");
                 else if (state == RTCPeerConnectionState.disconnected) _callDialog.SetCallState("Reconnexion…");
-            });
+            }); }
+            catch (InvalidOperationException) { }
         }
 
         private void OnMuteToggled()
@@ -119,27 +147,40 @@ namespace P2PChat.App.UI
             if (_audioCall != null) EndAudioCall(true, null);
         }
 
-        private async void EndAudioCall(bool notifyPeer, string message)
+        private async void EndAudioCall(bool notifyPeer, string message, string outcome = null)
         {
             WebRtcAudioCall call = _audioCall;
             string peer = _callPeerId, id = _callId;
+            string peerName = _callPeerName;
+            bool incoming = _callIncoming;
+            bool wasConnected = _callConnectedAt.HasValue;
+            int duration = _callConnectedAt.HasValue
+                ? Math.Max(0, (int)(DateTime.UtcNow - _callConnectedAt.Value).TotalSeconds) : 0;
+            if (!string.IsNullOrEmpty(peer))
+            {
+                if (outcome == null)
+                    outcome = wasConnected ? "Terminé" : (incoming ? "Manqué" : "Annulé");
+                AddCallHistory(peer, peerName, outcome, incoming, duration);
+            }
             AudioCallDialog dialog = _callDialog;
             _audioCall = null;
             _callDialog = null;
             _callPeerId = null;
             _callId = null;
+            _callPeerName = null;
+            _callConnectedAt = null;
             if (call != null)
             {
                 call.StateChanged -= OnAudioCallStateChanged;
-                call.Dispose();
+                try { call.Dispose(); } catch { }
             }
             if (dialog != null && !dialog.IsDisposed)
             {
                 dialog.HangupRequested -= OnHangupRequested;
                 dialog.MuteToggled -= OnMuteToggled;
                 dialog.FormClosed -= OnCallDialogClosed;
-                dialog.Close();
-                dialog.Dispose();
+                try { dialog.Close(); } catch { }
+                try { dialog.Dispose(); } catch { }
             }
             if (notifyPeer && !string.IsNullOrEmpty(peer) && !string.IsNullOrEmpty(id))
                 await _net.SendCallSignalAsync(peer, new CallSignal { CallId = id, Action = "hangup" });

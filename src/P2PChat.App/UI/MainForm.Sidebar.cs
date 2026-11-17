@@ -42,7 +42,7 @@ namespace P2PChat.App.UI
             Rectangle h = SidebarHeaderRect();
             using (Font f = WaTheme.Semi(18f))
             using (SolidBrush tb = new SolidBrush(WaTheme.TextDark))
-                g.DrawString(_activeNav == 4 ? "Archivées" : "Discussions", f, tb, h.X + WaTheme.S(24), h.Y + WaTheme.S(16));
+                g.DrawString(_activeNav == 4 ? "Archivées" : (_activeNav == 1 ? "Appels" : "Discussions"), f, tb, h.X + WaTheme.S(24), h.Y + WaTheme.S(16));
 
             Rectangle bNew = HeaderBtnRect(0);
             Rectangle bMenu = HeaderBtnRect(1);
@@ -463,6 +463,7 @@ namespace P2PChat.App.UI
 
         private void SidebarMouseDown(Point p, MouseButtons button)
         {
+            if (_activeNav == 1) { CallsPageMouseDown(p, button); return; }
             if (_activeNav == 2) { StatusMouseDown(p); return; }
             if (_activeNav == 6) { SettingsMouseDown(p); return; }
             if (_activeNav != 0 && _activeNav != 4) return;
@@ -498,6 +499,7 @@ namespace P2PChat.App.UI
 
         private void SidebarMouseUp(Point p, MouseButtons button)
         {
+            if (_activeNav == 1) { CallsPageMouseUp(p, button); return; }
             if (_activeNav != 0 && _activeNav != 4) return;
             int idx = RowIndexAt(p);
             if (idx < 0)

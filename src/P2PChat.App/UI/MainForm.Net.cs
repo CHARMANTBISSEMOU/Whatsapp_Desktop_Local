@@ -32,6 +32,7 @@ namespace P2PChat.App.UI
             LoadConversationsFromPeers();
             RebuildOrder();
             Invalidate(SidebarRect());
+            if (_activeNav == 1) Invalidate(ChatRect());
         }
 
         private void OnPeerAppeared(object sender, PeerInfo p)

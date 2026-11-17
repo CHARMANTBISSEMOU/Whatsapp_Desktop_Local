@@ -93,7 +93,7 @@ namespace P2PChat.App.Theme
                 }
                 string inits = Initials(pseudo);
                 using (SolidBrush tb = new SolidBrush(Color.White))
-                using (Font f = Semi(Math.Max(8f, r.Height / Dpi * 16f)))
+                using (Font f = Semi(Math.Max(8f, r.Height / Dpi * 0.38f)))
                 {
                     SizeF s = g.MeasureString(inits, f);
                     g.DrawString(inits, f, tb,

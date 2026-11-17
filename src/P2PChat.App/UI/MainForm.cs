@@ -214,7 +214,7 @@ namespace P2PChat.App.UI
             _chatSearchBox.Bounds = new Rectangle(sr.X + WaTheme.S(40), sr.Y + WaTheme.S(11),
                 sr.Width - WaTheme.S(60), WaTheme.S(20));
             _chatSearchBox.Visible = _activeNav == 0 && _chatSearchOpen && _selectedId != null;
-            _searchBox.Visible = _activeNav == 0 || _activeNav == 4;
+            _searchBox.Visible = _activeNav == 0 || _activeNav == 1 || _activeNav == 4;
             _inputHost.Visible = (_activeNav == 0 || _activeNav == 4) && _selectedId != null;
             if (_chatSearchOpen) _chatSearchBox.BringToFront();
         }
@@ -381,6 +381,7 @@ namespace P2PChat.App.UI
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             _closing = true;
+            if (_audioCall != null) EndAudioCall(true, null);
             Conversation old = Selected();
             if (old != null) old.Draft = _input.Text;
             try
@@ -443,6 +444,7 @@ namespace P2PChat.App.UI
                 }
                 else PaintEmptyState(g);
             }
+            else if (_activeNav == 1) PaintCallsPage(g);
             else if (_activeNav == 2) PaintStatusPage(g);
             else if (_activeNav == 6) PaintSettingsPage(g);
             else if (_activeNav == 5) PaintProfilePage(g);
@@ -483,8 +485,12 @@ namespace P2PChat.App.UI
             }
             else if (side.Contains(p))
             {
-                SidebarMouseMove(p);
-                Cursor = SplitterHit(p) ? Cursors.SizeWE : Cursors.Default;
+                if (_activeNav == 1) CallsPageMouseMove(p);
+                else
+                {
+                    SidebarMouseMove(p);
+                    Cursor = SplitterHit(p) ? Cursors.SizeWE : Cursors.Default;
+                }
             }
             else if (SplitterHit(p))
             {
@@ -497,7 +503,8 @@ namespace P2PChat.App.UI
                     _hoverRowId = null;
                     Invalidate(side);
                 }
-                ChatMouseMove(p);
+                if (_activeNav == 1) CallsPageMouseMove(p);
+                else ChatMouseMove(p);
             }
         }
 
@@ -522,6 +529,11 @@ namespace P2PChat.App.UI
                     _unreadFilter = false;
                     _favoritesFilter = false;
                     _listScroll = 0;
+                    if (nav == 1)
+                    {
+                        _searchQuery = "";
+                        _searchBox.Clear();
+                    }
                     RelayoutControls();
                     Invalidate(NavigationRailRect());
                     Invalidate();
@@ -529,6 +541,7 @@ namespace P2PChat.App.UI
             }
             else if (_activeNav == 5 && e.Button == MouseButtons.Left) ProfileMouseDown(p);
             else if (SidebarRect().Contains(p)) SidebarMouseDown(p, e.Button);
+            else if (_activeNav == 1) CallsPageMouseDown(p, e.Button);
             else ChatMouseDown(p, e.Button);
         }
 
@@ -549,6 +562,7 @@ namespace P2PChat.App.UI
             }
             if (NavigationRailRect().Contains(p)) return;
             if (SidebarRect().Contains(p)) SidebarMouseUp(p, e.Button);
+            else if (_activeNav == 1) CallsPageMouseUp(p, e.Button);
             else ChatMouseUp(p, e.Button);
         }
 
@@ -556,6 +570,12 @@ namespace P2PChat.App.UI
         {
             base.OnMouseLeave(e);
             _lastMouse = new Point(-999, -999);
+            if (_activeNav == 1 && (_hoverCallPeerId != null || _hoverCallButton))
+            {
+                _hoverCallPeerId = null;
+                _hoverCallButton = false;
+                Invalidate();
+            }
             if (_hoverRowId != null)
             {
                 _hoverRowId = null;
@@ -576,7 +596,7 @@ namespace P2PChat.App.UI
             int delta = e.Delta;
             if (SidebarRect().Contains(p))
             {
-                int max = ListScrollMax();
+                int max = _activeNav == 1 ? CallsListScrollMax() : ListScrollMax();
                 _listScroll = Math.Max(0, Math.Min(max, _listScroll - delta / 2));
                 Invalidate(SidebarRect());
             }

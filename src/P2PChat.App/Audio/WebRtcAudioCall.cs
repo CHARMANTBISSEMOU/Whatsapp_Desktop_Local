@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NAudio.Wave;
 using SIPSorcery.Media;
@@ -24,7 +25,8 @@ namespace P2PChat.App.Audio
         private AudioFormat _sendFormat;
         private bool _hasSendFormat;
         private bool _muted;
-        private bool _disposed;
+        private int _disposeStarted;
+        private volatile bool _disposed;
 
         internal event Action<RTCPeerConnectionState> StateChanged;
 
@@ -100,13 +102,13 @@ namespace P2PChat.App.Audio
         private void OnConnectionStateChanged(RTCPeerConnectionState state)
         {
             Action<RTCPeerConnectionState> handler = StateChanged;
-            if (handler != null) handler(state);
+            try { if (handler != null) handler(state); } catch { }
             if (state == RTCPeerConnectionState.connected)
             {
                 try { StartAudioDevices(); }
                 catch
                 {
-                    if (handler != null) handler(RTCPeerConnectionState.failed);
+                    try { if (handler != null) handler(RTCPeerConnectionState.failed); } catch { }
                 }
             }
             else if (state == RTCPeerConnectionState.failed || state == RTCPeerConnectionState.closed)
@@ -115,7 +117,7 @@ namespace P2PChat.App.Audio
 
         private void OnAudioFormatsNegotiated(List<AudioFormat> formats)
         {
-            if (formats == null) return;
+            if (_disposed || formats == null) return;
             _sendFormat = formats.FirstOrDefault(f => f.Codec == AudioCodecsEnum.OPUS);
             if (formats.Count > 0)
             {
@@ -126,13 +128,17 @@ namespace P2PChat.App.Audio
 
         private void OnAudioFrameReceived(EncodedAudioFrame frame)
         {
-            if (frame == null || _playback == null) return;
+            if (_disposed || frame == null) return;
             try
             {
-                short[] pcm = _encoder.DecodeAudio(frame.EncodedAudio, frame.AudioFormat);
-                byte[] bytes = new byte[pcm.Length * 2];
-                Buffer.BlockCopy(pcm, 0, bytes, 0, bytes.Length);
-                _playback.AddSamples(bytes, 0, bytes.Length);
+                lock (_audioLock)
+                {
+                    if (_disposed || _playback == null) return;
+                    short[] pcm = _encoder.DecodeAudio(frame.EncodedAudio, frame.AudioFormat);
+                    byte[] bytes = new byte[pcm.Length * 2];
+                    Buffer.BlockCopy(pcm, 0, bytes, 0, bytes.Length);
+                    _playback.AddSamples(bytes, 0, bytes.Length);
+                }
             }
             catch { }
         }
@@ -207,12 +213,12 @@ namespace P2PChat.App.Audio
             {
                 microphone.DataAvailable -= OnMicrophoneData;
                 try { microphone.StopRecording(); } catch { }
-                microphone.Dispose();
+                try { microphone.Dispose(); } catch { }
             }
             if (speaker != null)
             {
                 try { speaker.Stop(); } catch { }
-                speaker.Dispose();
+                try { speaker.Dispose(); } catch { }
             }
         }
 
@@ -237,18 +243,19 @@ namespace P2PChat.App.Audio
 
         public void Dispose()
         {
-            if (_disposed) return;
+            if (Interlocked.Exchange(ref _disposeStarted, 1) != 0) return;
             _disposed = true;
             StopAudioDevices();
-            if (_peer != null)
+            RTCPeerConnection peer = _peer;
+            _peer = null;
+            if (peer != null)
             {
-                _peer.OnAudioFormatsNegotiated -= OnAudioFormatsNegotiated;
-                _peer.OnAudioFrameReceived -= OnAudioFrameReceived;
-                _peer.onconnectionstatechange -= OnConnectionStateChanged;
-                try { _peer.close(); } catch { }
-                _peer = null;
+                try { peer.OnAudioFormatsNegotiated -= OnAudioFormatsNegotiated; } catch { }
+                try { peer.OnAudioFrameReceived -= OnAudioFrameReceived; } catch { }
+                try { peer.onconnectionstatechange -= OnConnectionStateChanged; } catch { }
+                try { peer.close(); } catch { }
             }
-            _encoder.Dispose();
+            try { _encoder.Dispose(); } catch { }
         }
     }
 }
