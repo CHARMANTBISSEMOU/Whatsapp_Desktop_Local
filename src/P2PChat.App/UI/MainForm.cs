@@ -39,6 +39,7 @@ namespace P2PChat.App.UI
         // ---------------------------------------------------------------- données
         private readonly Dictionary<string, Conversation> _convs =
             new Dictionary<string, Conversation>();
+        private readonly HashSet<string> _textSendInFlight = new HashSet<string>();
         private readonly List<string> _order = new List<string>();
         private string _selectedId;
         private string _hoverRowId;
@@ -293,6 +294,7 @@ namespace P2PChat.App.UI
             _input.SelectionStart = _input.Text.Length;
 
             LoadMessages(c);
+            RetryPendingTextMessages(peerId);
             MarkConversationRead(c);
             RebuildOrder();
             RelayoutControls();

@@ -30,6 +30,7 @@ namespace P2PChat.App.UI
         {
             if (_closing || IsDisposed) return;
             LoadConversationsFromPeers();
+            RetryPendingTextMessages();
             RebuildOrder();
             Invalidate(SidebarRect());
             if (_activeNav == 1) Invalidate(ChatRect());

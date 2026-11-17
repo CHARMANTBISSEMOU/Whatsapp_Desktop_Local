@@ -179,7 +179,13 @@ namespace P2PChat.App.UI
             string text = m.Text ?? "";
             using (Font f = WaTheme.Text(WaTheme.MsgPt))
             using (SolidBrush b = new SolidBrush(WaTheme.TextDark))
-                g.DrawString(text, f, b, new RectangleF(ix, iy, iw, 2000));
+            {
+                if (EmojiRasterizer.ContainsEmoji(text) && IsEmojiOnly(text))
+                    EmojiRasterizer.Draw(g, text, WaTheme.Emoji(WaTheme.MsgEmojiPt), b,
+                        new RectangleF(ix, iy, iw, WaTheme.S(64)));
+                else
+                    g.DrawString(text, f, b, new RectangleF(ix, iy, iw, 2000));
+            }
         }
 
         private void PaintVoiceContent(Graphics g, Conversation c, ChatMessage m, bool mine, int ix, int iy, int iw)
@@ -301,7 +307,7 @@ namespace P2PChat.App.UI
                 using (SolidBrush b = new SolidBrush(c))
                     g.DrawString(time, f, b, tx, ty);
                 if (m.IsMine)
-                    WaTheme.DrawChecks(g, tx + timeW + WaTheme.S(3), ty + WaTheme.S(4), m.Status);
+                    WaTheme.DrawChecks(g, tx + timeW + WaTheme.S(3), ty + WaTheme.S(1), m.Status);
             }
         }
 
@@ -314,7 +320,8 @@ namespace P2PChat.App.UI
                 g.FillPath(b, p);
             using (Font f = WaTheme.Emoji(10f))
             using (SolidBrush b = new SolidBrush(WaTheme.TextDark))
-                g.DrawString(emoji, f, b, chip.X + WaTheme.S(4), chip.Y + WaTheme.S(1));
+                EmojiRasterizer.Draw(g, emoji, f, b,
+                    new RectangleF(chip.X + WaTheme.S(3), chip.Y + WaTheme.S(1), WaTheme.S(20), WaTheme.S(18)));
         }
 
         private float[] DecodeWave(string b64)

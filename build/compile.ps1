@@ -81,6 +81,7 @@ $appArgs = @('/nologo', '/warn:4', '/langversion:7.3', '/codepage:65001', $debug
              '/target:winexe', "/out:$appOut") +
            @("/r:$ref\System.dll", "/r:$ref\System.Core.dll",
              "/r:$ref\System.Windows.Forms.dll", "/r:$ref\System.Drawing.dll",
+             "/r:$ref\PresentationCore.dll", "/r:$ref\WindowsBase.dll",
              "/r:$ref\Facades\netstandard.dll",
              "/r:$sipDll",
              "/r:$root\packages\SIPSorceryMedia.Abstractions\lib\netstandard2.0\SIPSorceryMedia.Abstractions.dll",

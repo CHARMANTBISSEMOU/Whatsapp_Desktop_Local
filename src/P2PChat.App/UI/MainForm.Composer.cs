@@ -178,7 +178,8 @@ namespace P2PChat.App.UI
                     int ex = p.X + col * WaTheme.S(42) + WaTheme.S(8);
                     int ey = gridTop + row * rowH - _emojiScroll;
                     if (ey + rowH >= gridTop && ey <= gridTop + visibleH)
-                        g.DrawString(list[i], f, eb, ex, ey + WaTheme.S(6));
+                        EmojiRasterizer.Draw(g, list[i], f, eb,
+                            new RectangleF(ex, ey + WaTheme.S(5), WaTheme.S(30), WaTheme.S(30)));
                 }
             }
             g.Restore(state);
@@ -290,6 +291,8 @@ namespace P2PChat.App.UI
 
         private async void SendTextWithFeedback(Conversation conversation, ChatMessage message)
         {
+            if (conversation == null || message == null || string.IsNullOrEmpty(message.Id) ||
+                !_textSendInFlight.Add(message.Id)) return;
             bool sent = false;
             try
             {
@@ -307,13 +310,44 @@ namespace P2PChat.App.UI
                 else sent = await _net.SendTextAsync(conversation.PeerId, message);
             }
             catch { sent = false; }
+            finally
+            {
+                _textSendInFlight.Remove(message.Id);
+            }
 
             if (!sent)
             {
-                message.Status = DeliveryStatus.Failed;
+                bool waitingForPeer = !IsGroup(conversation.PeerId) && !IsPeerOnline(conversation.PeerId);
+                message.Status = waitingForPeer ? DeliveryStatus.Pending : DeliveryStatus.Failed;
                 PersistMessage(message);
                 Invalidate(StreamRect());
-                _toasts.Show("Message non envoyé. Vérifiez que le contact est connecté.");
+                _toasts.Show(waitingForPeer
+                    ? "Message en attente. Il sera envoyé à la reconnexion."
+                    : "Message non envoyé. Réessayez.");
+            }
+        }
+
+        private bool IsPeerOnline(string peerId)
+        {
+            foreach (PeerInfo peer in _net.Peers)
+                if (peer.Id == peerId) return peer.Online;
+            return false;
+        }
+
+        private void RetryPendingTextMessages(string peerId = null)
+        {
+            if (_closing || IsDisposed) return;
+            foreach (Conversation conversation in _convs.Values)
+            {
+                if (IsGroup(conversation.PeerId) || (peerId != null && conversation.PeerId != peerId) ||
+                    !IsPeerOnline(conversation.PeerId)) continue;
+                for (int i = 0; i < conversation.Messages.Count; i++)
+                {
+                    ChatMessage message = conversation.Messages[i];
+                    if (message.IsMine && message.Kind == MessageKind.Text &&
+                        message.Status == DeliveryStatus.Pending)
+                        SendTextWithFeedback(conversation, message);
+                }
             }
         }
 
